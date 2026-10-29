@@ -32,6 +32,7 @@ async function getNotes(userId, view = "active") {
   return await prisma.note.findMany({
     where,
     orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }],
+    include: { tags: { include: { tag: true } } },
   });
 }
 

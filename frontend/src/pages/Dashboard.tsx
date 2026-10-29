@@ -12,14 +12,19 @@ import { getDrafts, type NoteDraft } from "../services/draft.service";
 import { getGraph } from "../services/graph.service";
 import { getTags } from "../services/tag.service";
 import type { Note } from "../types/note";
+import type { Tag } from "../types/tag";
 import "../user-guide.css";
+import "../filters.css";
 
 export default function Dashboard() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [relationCount, setRelationCount] = useState(0);
   const [tagCount, setTagCount] = useState(0);
+  const [availableTags, setAvailableTags] = useState<Tag[]>([]);
   const [query, setQuery] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+  const [sort, setSort] = useState<"updated" | "created" | "title">("updated");
   const [showEditor, setShowEditor] = useState(false);
   const [error, setError] = useState("");
   const [view, setView] = useState<NoteView>("active");
@@ -32,6 +37,7 @@ export default function Dashboard() {
       setNotes(noteResponse.data.data);
       setRelationCount(graphResponse.data.data.edges.length);
       setTagCount(tagResponse.data.data.length);
+      setAvailableTags(tagResponse.data.data);
       setError("");
     } catch {
       setError("We couldn’t load your notes. Check your connection and try again.");
@@ -44,6 +50,7 @@ export default function Dashboard() {
       setNotes(noteResponse.data.data);
       setRelationCount(graphResponse.data.data.edges.length);
       setTagCount(tagResponse.data.data.length);
+      setAvailableTags(tagResponse.data.data);
     }).catch(() => { if (active) setError("We couldn’t load your notes. Check your connection and try again."); });
     return () => { active = false; };
   }, [view]);
@@ -84,7 +91,18 @@ export default function Dashboard() {
     try { await permanentlyDeleteNote(id); await loadDashboard(); }
     catch { setError("The note couldn’t be permanently deleted."); }
   }
-  const filteredNotes = useMemo(() => notes.filter(note => `${note.title} ${note.content}`.toLowerCase().includes(query.toLowerCase().trim())), [notes, query]);
+  const filteredNotes = useMemo(() => notes.filter(note => {
+    const matchesText = `${note.title} ${note.content}`.toLowerCase().includes(query.toLowerCase().trim());
+    const matchesTag = !tagFilter || note.tags?.some(item => item.tag.id === Number(tagFilter));
+    return matchesText && matchesTag;
+  }).sort((a, b) => {
+    const pinOrder = Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned));
+    if (pinOrder) return pinOrder;
+    if (sort === "title") return a.title.localeCompare(b.title);
+    const aDate = new Date(sort === "created" ? a.createdAt : a.updatedAt).getTime();
+    const bDate = new Date(sort === "created" ? b.createdAt : b.updatedAt).getTime();
+    return bDate - aDate;
+  }), [notes, query, tagFilter, sort]);
   const greeting = new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(new Date());
 
   async function resumeDraft(draft: NoteDraft) {
@@ -111,7 +129,7 @@ export default function Dashboard() {
     <div className="note-views" role="group" aria-label="Note folders">{([{ id: "active", label: "Notes" }, { id: "archive", label: "Archive" }, { id: "trash", label: "Trash" }] as const).map(item => <button key={item.id} className={view === item.id ? "selected" : ""} aria-pressed={view === item.id} onClick={() => { setQuery(""); setView(item.id); }}>{item.label}</button>)}</div>
     {error && <p className="notice" role="alert">{error}</p>}
     {(showEditor || selectedNote) && <NoteEditor key={selectedNote?.id ?? "new"} selectedNote={selectedNote} onCreate={handleCreate} onUpdate={handleUpdate} onCancel={() => { setShowEditor(false); setSelectedNote(null); }} />}
-    <div className="toolbar"><h2 className="section-title" style={{ margin: 0 }}>{view === "archive" ? "Archived notes" : view === "trash" ? "Trash" : "Your notes"} <span style={{ color: "#9aa19a", fontWeight: 500 }}>({filteredNotes.length})</span></h2><div className="search-wrap"><Search size={16} className="search-icon"/><input className="field" aria-label="Search notes" placeholder="Search your notes…" value={query} onChange={e => setQuery(e.target.value)} /></div></div>
+    <div className="toolbar"><h2 className="section-title" style={{ margin: 0 }}>{view === "archive" ? "Archived notes" : view === "trash" ? "Trash" : "Your notes"} <span style={{ color: "#9aa19a", fontWeight: 500 }}>({filteredNotes.length})</span></h2><div className="filter-controls"><div className="search-wrap"><Search size={16} className="search-icon"/><input className="field" aria-label="Search notes" placeholder="Search your notes…" value={query} onChange={e => setQuery(e.target.value)} /></div><select className="field filter-select" aria-label="Filter notes by tag" value={tagFilter} onChange={e => setTagFilter(e.target.value)}><option value="">All tags</option>{availableTags.map(tag => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select><select className="field filter-select" aria-label="Sort notes" value={sort} onChange={e => setSort(e.target.value as typeof sort)}><option value="updated">Recently updated</option><option value="created">Date created</option><option value="title">Title A–Z</option></select></div></div>
     <NoteList notes={filteredNotes} hasNotes={notes.length > 0} view={view} onDelete={handleDelete} onEdit={note => { setSelectedNote(note); setShowEditor(true); window.scrollTo({ top: 0, behavior: "smooth" }); }} onPin={handlePin} onArchive={handleArchive} onRestore={handleRestore} onPurge={handlePurge} onStatsChange={() => void loadDashboard()} />
   </main></div></div>;
 }

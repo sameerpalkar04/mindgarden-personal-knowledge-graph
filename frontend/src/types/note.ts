@@ -1,3 +1,5 @@
+import type { Tag } from "./tag";
+
 export interface Note {
   id: number;
   title: string;
@@ -8,4 +10,5 @@ export interface Note {
   isPinned?: boolean;
   archivedAt?: string | null;
   deletedAt?: string | null;
+  tags?: Array<{ tag: Tag }>;
 }
