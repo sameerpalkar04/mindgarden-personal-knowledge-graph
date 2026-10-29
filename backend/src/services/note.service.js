@@ -19,7 +19,7 @@ async function createNote(userId, noteData) {
 }
 
 async function getNotes(userId, view = "active") {
-  const where = { userId };
+  const where = { OR: [{ userId }, { shares: { some: { userId } } }] };
   if (view === "archive") {
     where.archivedAt = { not: null };
     where.deletedAt = null;
@@ -29,20 +29,50 @@ async function getNotes(userId, view = "active") {
     where.archivedAt = null;
     where.deletedAt = null;
   }
-  return await prisma.note.findMany({
+  const notes = await prisma.note.findMany({
     where,
     orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }],
     include: { tags: { include: { tag: true } } },
   });
+  return notes.map(note => ({ ...note, isShared: note.userId !== userId }));
 }
 
 async function getNoteById(userId, noteId) {
-  return await prisma.note.findFirst({
+  const note = await prisma.note.findFirst({
     where: {
       id: Number(noteId),
-      userId,
+      OR: [{ userId }, { shares: { some: { userId } } }],
     },
   });
+  return note ? { ...note, isShared: note.userId !== userId } : null;
+}
+
+async function shareNote(userId, noteId, email) {
+  const note = await prisma.note.findFirst({ where: { id: Number(noteId), userId, deletedAt: null } });
+  if (!note) throw new Error("Note not found");
+  const recipient = await prisma.user.findFirst({ where: { email: { equals: String(email || "").trim(), mode: "insensitive" } } });
+  if (!recipient) throw new Error("No Mindgarden account was found for that email");
+  if (recipient.id === userId) throw new Error("You already own this note");
+  return prisma.noteShare.upsert({
+    where: { noteId_userId: { noteId: note.id, userId: recipient.id } },
+    update: {},
+    create: { noteId: note.id, userId: recipient.id },
+    include: { user: { select: { id: true, email: true, username: true } } },
+  });
+}
+
+async function getNoteShares(userId, noteId) {
+  const note = await prisma.note.findFirst({ where: { id: Number(noteId), userId } });
+  if (!note) throw new Error("Note not found");
+  return prisma.noteShare.findMany({ where: { noteId: note.id }, include: { user: { select: { id: true, email: true, username: true } } }, orderBy: { createdAt: "asc" } });
+}
+
+async function revokeNoteShare(userId, noteId, shareId) {
+  const note = await prisma.note.findFirst({ where: { id: Number(noteId), userId } });
+  if (!note) throw new Error("Note not found");
+  const result = await prisma.noteShare.deleteMany({ where: { id: Number(shareId), noteId: note.id } });
+  if (!result.count) throw new Error("Share not found");
+  return { message: "Access removed" };
 }
 
 async function updateNote(userId, noteId, noteData) {
@@ -168,6 +198,9 @@ module.exports = {
   createNote,
   getNotes,
   getNoteById,
+  shareNote,
+  getNoteShares,
+  revokeNoteShare,
   updateNote,
   getNoteHistory,
   restoreNoteRevision,

@@ -40,7 +40,8 @@ async function attachTag(req, res) {
   try {
     const result = await tagService.attachTagToNote(
       req.params.id,
-      req.body.tagId
+      req.body.tagId,
+      req.user.id
     );
 
     return res.status(201).json({
@@ -59,7 +60,7 @@ async function attachTag(req, res) {
 
 async function getTagsForNote(req, res) {
   try {
-    const tags = await tagService.getTagsForNote(req.params.id);
+    const tags = await tagService.getTagsForNote(req.params.id, req.user.id);
 
     return res.status(200).json({
       success: true,
@@ -79,7 +80,8 @@ async function removeTag(req, res) {
   try {
     const result = await tagService.removeTagFromNote(
       req.params.id,
-      req.params.tagId
+      req.params.tagId,
+      req.user.id
     );
 
     return res.status(200).json({

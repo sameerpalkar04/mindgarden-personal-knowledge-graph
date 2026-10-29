@@ -86,6 +86,27 @@ async function getNoteById(req, res) {
   }
 }
 
+async function shareNote(req, res) {
+  try {
+    const share = await noteService.shareNote(req.user.id, req.params.id, req.body.email);
+    return res.status(201).json({ success: true, data: share });
+  } catch (error) { return res.status(400).json({ success: false, message: error.message }); }
+}
+
+async function getNoteShares(req, res) {
+  try {
+    const shares = await noteService.getNoteShares(req.user.id, req.params.id);
+    return res.json({ success: true, data: shares });
+  } catch (error) { return res.status(404).json({ success: false, message: error.message }); }
+}
+
+async function revokeNoteShare(req, res) {
+  try {
+    const result = await noteService.revokeNoteShare(req.user.id, req.params.id, req.params.shareId);
+    return res.json({ success: true, data: result });
+  } catch (error) { return res.status(400).json({ success: false, message: error.message }); }
+}
+
 async function updateNote(req, res) {
   try {
     const note = await noteService.updateNote(
@@ -182,6 +203,9 @@ module.exports = {
   getReminders,
   setReminder,
   getNoteById,
+  shareNote,
+  getNoteShares,
+  revokeNoteShare,
   updateNote,
   getNoteHistory,
   restoreNoteRevision,

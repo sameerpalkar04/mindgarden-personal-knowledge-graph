@@ -20,6 +20,7 @@ model User {
   createdAt DateTime @default(now())
 
   notes Note[]
+  receivedShares NoteShare[]
 }
 
 model Note {
@@ -42,6 +43,7 @@ model Note {
   incomingLinks NoteRelation[]   @relation("TargetNote")
   attachments   NoteAttachment[]
   revisions     NoteRevision[]
+  shares        NoteShare[]
 
   @@unique([userId, dailyDate])
 }
@@ -96,4 +98,16 @@ model NoteRevision {
   note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
 
   @@index([noteId, createdAt])
+}
+
+model NoteShare {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  noteId    Int
+  userId    Int
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, userId])
+  @@index([userId])
 }

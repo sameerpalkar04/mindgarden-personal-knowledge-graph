@@ -56,7 +56,9 @@ async function getRelations(userId) {
   });
 }
 
-async function deleteRelation(sourceNoteId, targetNoteId) {
+async function deleteRelation(sourceNoteId, targetNoteId, userId) {
+  const source = await prisma.note.findFirst({ where: { id: Number(sourceNoteId), userId } });
+  if (!source) throw new Error("Source note not found");
   await prisma.noteRelation.delete({
     where: {
       sourceNoteId_targetNoteId: {

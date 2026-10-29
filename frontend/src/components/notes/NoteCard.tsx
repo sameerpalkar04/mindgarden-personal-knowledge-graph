@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Archive, ArrowDownToLine, ArrowUpRight, Bell, History, Link2, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Sparkles, Tag as TagIcon, Trash2, X } from "lucide-react";
+import { Archive, ArrowDownToLine, ArrowUpRight, Bell, History, Link2, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Share2, Sparkles, Tag as TagIcon, Trash2, X } from "lucide-react";
 import type { Note } from "../../types/note";
 import type { Tag } from "../../types/tag";
 import { getTags, getTagsForNote, createTag, attachTag } from "../../services/tag.service";
@@ -10,6 +10,7 @@ import "../../markdown.css";
 import type { NoteView } from "../../services/note.service";
 import type { NoteRelation } from "../../types/relation";
 import { deleteAttachment, downloadAttachment, getAttachments, type NoteAttachment, uploadAttachment } from "../../services/attachment.service";
+import { getNoteShares, revokeNoteShare, shareNote, type NoteShare } from "../../services/share.service";
 
 interface Props { note: Note; view: NoteView; relations: NoteRelation[]; onDelete: (id: number) => void; onEdit: (note: Note) => void; onPin: (id: number, pinned: boolean) => void; onArchive: (id: number, archived: boolean) => void; onRestore: (id: number) => void; onPurge: (id: number) => void; onStatsChange: () => void; }
 
@@ -37,6 +38,9 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
   const [history, setHistory] = useState<Array<{ id: number; title: string; content: string; createdAt: string }>>([]);
   const [historyStatus, setHistoryStatus] = useState("");
   const [showSummary, setShowSummary] = useState(false);
+  const [shareEmail, setShareEmail] = useState("");
+  const [shares, setShares] = useState<NoteShare[]>([]);
+  const [shareStatus, setShareStatus] = useState("");
   const outgoing = relations.filter(relation => relation.sourceNoteId === note.id);
   const incoming = relations.filter(relation => relation.targetNoteId === note.id);
   const suggestions = useMemo(() => {
@@ -147,6 +151,30 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
     } catch { setHistoryStatus("History couldn’t be loaded."); }
   }
 
+  async function loadShares() {
+    try { const response = await getNoteShares(note.id); setShares(response.data.data); }
+    catch { setShareStatus("Sharing details couldn’t be loaded."); }
+  }
+
+  async function addShare() {
+    if (!shareEmail.trim()) return;
+    setShareStatus("Sharing note…");
+    try {
+      await shareNote(note.id, shareEmail.trim());
+      setShareEmail("");
+      setShareStatus("Note shared as read-only.");
+      await loadShares();
+    } catch (error) {
+      const message = (error as { response?: { data?: { message?: string } } }).response?.data?.message;
+      setShareStatus(message || "This note couldn’t be shared.");
+    }
+  }
+
+  async function removeShare(shareId: number) {
+    try { await revokeNoteShare(note.id, shareId); setShares(current => current.filter(item => item.id !== shareId)); }
+    catch { setShareStatus("Access couldn’t be removed."); }
+  }
+
   async function restoreRevision(revisionId: number) {
     if (!window.confirm("Restore this version? The current note will be saved as a version first.")) return;
     try {
@@ -158,16 +186,18 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
 
   return <article className="note-card">
     <h3>{note.title || "Untitled note"}</h3>
+    {note.isShared && <div className="shared-note-label"><Share2 size={12}/> Shared with you · read only</div>}
     <div className="note-content markdown-card-content"><MarkdownPreview content={note.content}/></div>
     {summary && <div className="quick-summary"><button className="summary-toggle" aria-expanded={showSummary} onClick={() => setShowSummary(!showSummary)}><Sparkles size={13}/>{showSummary ? "Hide summary" : "Quick summary"}</button>{showSummary && <p>{summary}{!/[.!?]$/.test(summary) && "."}</p>}</div>}
     {tags.length > 0 && <div className="tag-row">{tags.map(tag => <span className="tag-chip" key={tag.id}><TagIcon size={11} style={{ verticalAlign: "-2px", marginRight: 4 }}/>{tag.name}</span>)}</div>}
     {(outgoing.length > 0 || incoming.length > 0) && <div className="note-link-summary">{outgoing.length > 0 && <div><span>Links to</span>{outgoing.map(relation => <button key={`out-${relation.targetNoteId}`} onClick={() => onEdit(relation.targetNote)}>{relation.targetNote.title}<small>{relation.label}</small></button>)}</div>}{incoming.length > 0 && <div><span>Backlinks</span>{incoming.map(relation => <button key={`in-${relation.sourceNoteId}`} onClick={() => onEdit(relation.sourceNote)}>{relation.sourceNote.title}<small>{relation.label}</small></button>)}</div>}</div>}
     {suggestions.length > 0 && <div className="suggestion-section"><button className="suggestion-toggle" aria-expanded={showSuggestions} onClick={() => setShowSuggestions(!showSuggestions)}><Sparkles size={14}/> Related ideas <span>{suggestions.length}</span></button>{showSuggestions && <div className="suggestion-list">{suggestions.map(item => <div className="suggestion-item" key={item.note.id}><div><strong>{item.note.title}</strong><small>{item.sharedTags.length ? `Shares ${item.sharedTags.join(", ")}` : `Similar terms: ${item.sharedWords.join(", ")}`}</small></div><div className="suggestion-actions"><button className="suggestion-link" onClick={() => onEdit(item.note)}>Open</button><button className="suggestion-link" onClick={() => void linkSuggestion(item.note.id)}>Link</button></div></div>)}</div>}</div>}
     <div className="note-meta"><span>{new Date(note.updatedAt || note.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span><div className="note-actions">
-      {view === "trash" ? <><button className="icon-btn" title="Restore note" aria-label="Restore note" onClick={() => onRestore(note.id)}><RotateCcw size={15}/></button><button className="icon-btn" title="Delete permanently" aria-label="Delete permanently" onClick={() => onPurge(note.id)}><Trash2 size={15}/></button></> : <><button className="icon-btn" title="Add tags or connections" aria-label="Add tags or connections" onClick={() => setShowTools(!showTools)}><Link2 size={16}/></button><button className="icon-btn" title="Edit note" aria-label="Edit note" onClick={() => onEdit(note)}><Pencil size={15}/></button><button className="icon-btn" title={note.isPinned ? "Unpin note" : "Pin note"} aria-label={note.isPinned ? "Unpin note" : "Pin note"} onClick={() => onPin(note.id, !note.isPinned)}>{note.isPinned ? <PinOff size={15}/> : <Pin size={15}/>}</button><button className="icon-btn" title={view === "archive" ? "Restore from archive" : "Archive note"} aria-label={view === "archive" ? "Restore from archive" : "Archive note"} onClick={() => onArchive(note.id, view !== "archive")}><Archive size={15}/></button><button className="icon-btn" title="Move to trash" aria-label="Move to trash" onClick={() => onDelete(note.id)}><Trash2 size={15}/></button></>}
+      {view === "trash" ? <><button className="icon-btn" title="Restore note" aria-label="Restore note" onClick={() => onRestore(note.id)}><RotateCcw size={15}/></button><button className="icon-btn" title="Delete permanently" aria-label="Delete permanently" onClick={() => onPurge(note.id)}><Trash2 size={15}/></button></> : note.isShared ? null : <><button className="icon-btn" title="Add tags, connections, or sharing" aria-label="Add tags, connections, or sharing" onClick={() => { const opening = !showTools; setShowTools(opening); if (opening) void loadShares(); }}><Link2 size={16}/></button><button className="icon-btn" title="Edit note" aria-label="Edit note" onClick={() => onEdit(note)}><Pencil size={15}/></button><button className="icon-btn" title={note.isPinned ? "Unpin note" : "Pin note"} aria-label={note.isPinned ? "Unpin note" : "Pin note"} onClick={() => onPin(note.id, !note.isPinned)}>{note.isPinned ? <PinOff size={15}/> : <Pin size={15}/>}</button><button className="icon-btn" title={view === "archive" ? "Restore from archive" : "Archive note"} aria-label={view === "archive" ? "Restore from archive" : "Archive note"} onClick={() => onArchive(note.id, view !== "archive")}><Archive size={15}/></button><button className="icon-btn" title="Move to trash" aria-label="Move to trash" onClick={() => onDelete(note.id)}><Trash2 size={15}/></button></>}
     </div></div>
     {note.reminderAt && <div className="note-reminder"><Bell size={12}/> Reminder · {new Date(note.reminderAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</div>}
     {showTools && <div className="note-tools">
+      <div className="share-tools"><label htmlFor={`share-${note.id}`}><Share2 size={13}/> Share read-only with a Mindgarden account</label><div><input id={`share-${note.id}`} className="field" type="email" value={shareEmail} onChange={event => setShareEmail(event.target.value)} placeholder="Account email"/><button className="secondary-btn" onClick={() => void addShare()}>Share</button></div>{shares.map(item => <div className="share-row" key={item.id}><span>{item.user.email}</span><button className="icon-btn" title="Remove access" aria-label={`Remove access for ${item.user.email}`} onClick={() => void removeShare(item.id)}><X size={14}/></button></div>)}{shareStatus && <small role="status">{shareStatus}</small>}</div>
       <div className="reminder-tools"><label htmlFor={`reminder-${note.id}`}><Bell size={13}/> Remind me</label><div><input id={`reminder-${note.id}`} className="field" type="datetime-local" value={reminderValue} onChange={event => setReminderValue(event.target.value)}/><button className="secondary-btn" disabled={!reminderValue} onClick={() => void saveReminder(reminderValue)}>Save</button>{note.reminderAt && <button className="icon-btn" aria-label="Clear reminder" title="Clear reminder" onClick={() => void saveReminder(null)}><X size={14}/></button>}</div>{reminderStatus && <small role="status">{reminderStatus}</small>}</div>
       <div className="history-tools"><button className="history-toggle" onClick={() => void loadHistory()}><History size={13}/> Version history</button>{historyStatus && <small role="status">{historyStatus}</small>}{history.map(revision => <div className="history-item" key={revision.id}><span><strong>{revision.title || "Untitled note"}</strong><small>{new Date(revision.createdAt).toLocaleString()}</small><small>{revision.content.slice(0, 130)}{revision.content.length > 130 ? "…" : ""}</small></span><button className="secondary-btn" onClick={() => void restoreRevision(revision.id)}>Restore</button></div>)}</div>
       <div className="tool-row"><input className="field" value={newTag} onChange={e => setNewTag(e.target.value)} placeholder="New tag" aria-label="New tag" onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void handleCreateTag(); } }} /><button className="secondary-btn" onClick={() => void handleCreateTag()}><Plus size={14}/> Add</button></div>

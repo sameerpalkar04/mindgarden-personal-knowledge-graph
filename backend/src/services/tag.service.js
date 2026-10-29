@@ -20,7 +20,9 @@ async function getTags() {
   });
 }
 
-async function attachTagToNote(noteId, tagId) {
+async function attachTagToNote(noteId, tagId, userId) {
+  const note = await prisma.note.findFirst({ where: { id: Number(noteId), userId } });
+  if (!note) throw new Error("Note not found");
   return await prisma.noteTag.create({
     data: {
       noteId: Number(noteId),
@@ -29,7 +31,9 @@ async function attachTagToNote(noteId, tagId) {
   });
 }
 
-async function getTagsForNote(noteId) {
+async function getTagsForNote(noteId, userId) {
+  const note = await prisma.note.findFirst({ where: { id: Number(noteId), OR: [{ userId }, { shares: { some: { userId } } }] } });
+  if (!note) throw new Error("Note not found");
   const noteTags = await prisma.noteTag.findMany({
     where: {
       noteId: Number(noteId),
@@ -42,7 +46,9 @@ async function getTagsForNote(noteId) {
   return noteTags.map((nt) => nt.tag);
 }
 
-async function removeTagFromNote(noteId, tagId) {
+async function removeTagFromNote(noteId, tagId, userId) {
+  const note = await prisma.note.findFirst({ where: { id: Number(noteId), userId } });
+  if (!note) throw new Error("Note not found");
   await prisma.noteTag.delete({
     where: {
       noteId_tagId: {

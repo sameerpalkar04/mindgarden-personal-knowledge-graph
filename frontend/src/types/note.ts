@@ -12,5 +12,6 @@ export interface Note {
   deletedAt?: string | null;
   reminderAt?: string | null;
   dailyDate?: string | null;
+  isShared?: boolean;
   tags?: Array<{ tag: Tag }>;
 }

@@ -47,7 +47,8 @@ async function deleteRelation(req, res) {
   try {
     const result = await relationService.deleteRelation(
       req.params.sourceId,
-      req.params.targetId
+      req.params.targetId,
+      req.user.id
     );
 
     return res.json({
