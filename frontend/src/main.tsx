@@ -7,6 +7,10 @@ import "./index.css";
 
 import { AuthProvider } from "./context/AuthContext";
 
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  window.addEventListener("load", () => { void navigator.serviceWorker.register("/service-worker.js"); });
+}
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <AuthProvider>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, FileText, Network, Plus, Search, Tag as TagIcon } from "lucide-react";
 import { BookOpen } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -8,7 +8,7 @@ import NoteEditor from "../components/notes/NoteEditor";
 import NoteList from "../components/notes/NoteList";
 import { getNotes, getOrCreateDailyNote, createNote, updateNote, deleteNote, setNotePinned, setNoteArchived, restoreNote, permanentlyDeleteNote, type NoteView } from "../services/note.service";
 import { getNote } from "../services/note.service";
-import { getDrafts, type NoteDraft } from "../services/draft.service";
+import { getDrafts, removeDraft, type NoteDraft } from "../services/draft.service";
 import { getGraph } from "../services/graph.service";
 import { getTags } from "../services/tag.service";
 import type { Note } from "../types/note";
@@ -34,8 +34,10 @@ export default function Dashboard() {
   const [view, setView] = useState<NoteView>("active");
   const [drafts, setDrafts] = useState<NoteDraft[]>(() => getDrafts());
   const [showDrafts, setShowDrafts] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [syncStatus, setSyncStatus] = useState("");
 
-  async function loadDashboard(nextView: NoteView = view) {
+  const loadDashboard = useCallback(async (nextView: NoteView = view) => {
     try {
       const [noteResponse, graphResponse, tagResponse, relationResponse] = await Promise.all([getNotes(nextView), getGraph(), getTags(), getRelations()]);
       setNotes(noteResponse.data.data);
@@ -47,7 +49,7 @@ export default function Dashboard() {
     } catch {
       setError("We couldn’t load your notes. Check your connection and try again.");
     }
-  }
+  }, [view]);
   useEffect(() => {
     let active = true;
     Promise.all([getNotes(view), getGraph(), getTags(), getRelations()]).then(([noteResponse, graphResponse, tagResponse, relationResponse]) => {
@@ -65,6 +67,44 @@ export default function Dashboard() {
     const refreshDrafts = () => setDrafts(getDrafts());
     window.addEventListener("mindgarden:drafts-change", refreshDrafts);
     return () => window.removeEventListener("mindgarden:drafts-change", refreshDrafts);
+  }, []);
+
+  const syncDrafts = useCallback(async () => {
+    const pending = getDrafts();
+    if (!pending.length) { setSyncStatus("No drafts to sync."); return; }
+    let synced = 0;
+    setSyncStatus("Syncing drafts…");
+    for (const draft of pending) {
+      if (!draft.title.trim() || !draft.content.trim()) continue;
+      try {
+        if (draft.noteId === null) await createNote(draft.title, draft.content);
+        else await updateNote(draft.noteId, draft.title, draft.content);
+        const current = getDrafts().find(item => item.noteId === draft.noteId);
+        if (current?.updatedAt === draft.updatedAt) removeDraft(draft.noteId);
+        synced += 1;
+      } catch { /* Keep unsynced drafts on this device for the next attempt. */ }
+    }
+    setDrafts(getDrafts());
+    setSyncStatus(synced ? `Synced ${synced} ${synced === 1 ? "draft" : "drafts"}.` : "Couldn’t sync yet. Your drafts are safe on this device.");
+    await loadDashboard();
+  }, [loadDashboard]);
+
+  const syncDraftsRef = useRef(syncDrafts);
+  const showEditorRef = useRef(showEditor);
+  useEffect(() => {
+    syncDraftsRef.current = syncDrafts;
+    showEditorRef.current = showEditor;
+  }, [showEditor, syncDrafts]);
+
+  useEffect(() => {
+    const reconnect = () => {
+      setIsOnline(true);
+      if (!showEditorRef.current) void syncDraftsRef.current();
+    };
+    const disconnect = () => setIsOnline(false);
+    window.addEventListener("online", reconnect);
+    window.addEventListener("offline", disconnect);
+    return () => { window.removeEventListener("online", reconnect); window.removeEventListener("offline", disconnect); };
   }, []);
 
   async function handleCreate(title: string, content: string) {
@@ -136,12 +176,13 @@ export default function Dashboard() {
 
   return <div className="app-shell"><Navbar /><div className="workspace"><Sidebar /><main className="main">
     <div className="page-head"><div><div className="eyebrow">{greeting}</div><h1>Your thoughts, connected.</h1><p className="page-subtitle">A quiet place to collect ideas and see where they lead.</p></div><div className="dashboard-actions"><Link className="secondary-btn guide-action" to="/guide"><BookOpen size={16}/> How it works</Link><NoteDataTools onImported={() => void loadDashboard()} />{drafts.length > 0 && <button className="secondary-btn guide-action" onClick={() => setShowDrafts(!showDrafts)}>Drafts ({drafts.length})</button>}{view === "active" && <><button className="secondary-btn" onClick={() => void handleDailyNote()}><CalendarDays size={16}/> Today’s note</button><button className="primary-btn" onClick={() => { setSelectedNote(null); setShowEditor(!showEditor); }}><Plus size={17} /> New note</button></>}</div></div>
-    {showDrafts && <section className="drafts-panel"><div className="drafts-heading"><h2>Saved drafts</h2><button className="icon-btn" aria-label="Close drafts" onClick={() => setShowDrafts(false)}>×</button></div>{drafts.map((draft, index) => <button className="draft-item" key={`${draft.noteId ?? "new"}-${index}`} onClick={() => void resumeDraft(draft)}><span><strong>{draft.title || "Untitled draft"}</strong><small>{draft.noteId === null ? "New note" : "Unsaved note changes"}</small></span><time>{new Date(draft.updatedAt).toLocaleString()}</time></button>)}</section>}
+    {showDrafts && <section className="drafts-panel"><div className="drafts-heading"><h2>Saved drafts</h2><button className="icon-btn" aria-label="Close drafts" onClick={() => setShowDrafts(false)}>×</button></div><button className="secondary-btn" disabled={!isOnline} onClick={() => void syncDrafts()}>Sync drafts</button>{syncStatus && <small className="draft-status" role="status">{syncStatus}</small>}{drafts.map((draft, index) => <button className="draft-item" key={`${draft.noteId ?? "new"}-${index}`} onClick={() => void resumeDraft(draft)}><span><strong>{draft.title || "Untitled draft"}</strong><small>{draft.noteId === null ? "New note" : "Unsaved note changes"}</small></span><time>{new Date(draft.updatedAt).toLocaleString()}</time></button>)}</section>}
     <section className="stats-grid" aria-label="Knowledge base overview">
       <div className="stat-card"><span className="stat-icon"><FileText size={18} /></span><div><div className="stat-label">Notes</div><div className="stat-value">{notes.length}</div></div></div>
       <div className="stat-card"><span className="stat-icon"><TagIcon size={18} /></span><div><div className="stat-label">Tags</div><div className="stat-value">{tagCount}</div></div></div>
       <div className="stat-card"><span className="stat-icon"><Network size={18} /></span><div><div className="stat-label">Connections</div><div className="stat-value">{relationCount}</div></div></div>
     </section>
+    {!isOnline && <p className="offline-notice" role="status">You’re offline. Changes are saved on this device and will sync when you reconnect.</p>}
     <div className="note-views" role="group" aria-label="Note folders">{([{ id: "active", label: "Notes" }, { id: "archive", label: "Archive" }, { id: "trash", label: "Trash" }] as const).map(item => <button key={item.id} className={view === item.id ? "selected" : ""} aria-pressed={view === item.id} onClick={() => { setQuery(""); setView(item.id); }}>{item.label}</button>)}</div>
     {error && <p className="notice" role="alert">{error}</p>}
     {(showEditor || selectedNote) && <NoteEditor key={selectedNote?.id ?? "new"} selectedNote={selectedNote} onCreate={handleCreate} onUpdate={handleUpdate} onCancel={() => { setShowEditor(false); setSelectedNote(null); }} />}
