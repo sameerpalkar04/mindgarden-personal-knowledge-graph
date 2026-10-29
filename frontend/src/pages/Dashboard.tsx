@@ -19,6 +19,31 @@ import NoteDataTools from "../components/notes/NoteDataTools";
 import "../user-guide.css";
 import "../filters.css";
 
+const searchNeighbors: Record<string, string[]> = {
+  idea: ["thought", "concept", "notion"], thought: ["idea", "concept"], concept: ["idea", "thought"],
+  plan: ["roadmap", "strategy", "steps"], roadmap: ["plan", "strategy"], task: ["todo", "action", "work"], todo: ["task", "action"],
+  learn: ["study", "research", "insight"], study: ["learn", "research"], research: ["study", "investigation"],
+  book: ["reading", "author", "chapter"], reading: ["book", "article", "paper"], project: ["work", "initiative"],
+  question: ["ask", "problem", "curious"], problem: ["question", "challenge", "issue"],
+};
+
+function noteSearchScore(note: Note, query: string) {
+  const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (!terms.length) return 1;
+  const title = note.title.toLowerCase();
+  const content = note.content.toLowerCase();
+  const tags = (note.tags || []).map(item => item.tag.name.toLowerCase()).join(" ");
+  const haystack = `${title} ${content} ${tags}`;
+  return terms.reduce((score, term) => {
+    const variants = [term, ...(searchNeighbors[term] || [])];
+    if (title.includes(term)) return score + 8;
+    if (tags.split(/\s+/).some(tag => tag.includes(term))) return score + 6;
+    if (content.includes(term)) return score + 4;
+    const neighbor = variants.slice(1).find(word => haystack.includes(word));
+    return score + (neighbor ? 2 : 0);
+  }, 0);
+}
+
 export default function Dashboard() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
@@ -147,18 +172,21 @@ export default function Dashboard() {
     try { await permanentlyDeleteNote(id); await loadDashboard(); }
     catch { setError("The note couldn’t be permanently deleted."); }
   }
-  const filteredNotes = useMemo(() => notes.filter(note => {
-    const matchesText = `${note.title} ${note.content}`.toLowerCase().includes(query.toLowerCase().trim());
+  const filteredNotes = useMemo(() => notes.map(note => ({ note, relevance: noteSearchScore(note, query) })).filter(({ note, relevance }) => {
+    const matchesText = !query.trim() || relevance > 0;
     const matchesTag = !tagFilter || note.tags?.some(item => item.tag.id === Number(tagFilter));
     return matchesText && matchesTag;
   }).sort((a, b) => {
-    const pinOrder = Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned));
+    if (query.trim() && a.relevance !== b.relevance) return b.relevance - a.relevance;
+    const { note: first } = a;
+    const { note: second } = b;
+    const pinOrder = Number(Boolean(second.isPinned)) - Number(Boolean(first.isPinned));
     if (pinOrder) return pinOrder;
-    if (sort === "title") return a.title.localeCompare(b.title);
-    const aDate = new Date(sort === "created" ? a.createdAt : a.updatedAt).getTime();
-    const bDate = new Date(sort === "created" ? b.createdAt : b.updatedAt).getTime();
+    if (sort === "title") return first.title.localeCompare(second.title);
+    const aDate = new Date(sort === "created" ? first.createdAt : first.updatedAt).getTime();
+    const bDate = new Date(sort === "created" ? second.createdAt : second.updatedAt).getTime();
     return bDate - aDate;
-  }), [notes, query, tagFilter, sort]);
+  }).map(item => item.note), [notes, query, tagFilter, sort]);
   const greeting = new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(new Date());
 
   async function resumeDraft(draft: NoteDraft) {
@@ -186,7 +214,7 @@ export default function Dashboard() {
     <div className="note-views" role="group" aria-label="Note folders">{([{ id: "active", label: "Notes" }, { id: "archive", label: "Archive" }, { id: "trash", label: "Trash" }] as const).map(item => <button key={item.id} className={view === item.id ? "selected" : ""} aria-pressed={view === item.id} onClick={() => { setQuery(""); setView(item.id); }}>{item.label}</button>)}</div>
     {error && <p className="notice" role="alert">{error}</p>}
     {(showEditor || selectedNote) && <NoteEditor key={selectedNote?.id ?? "new"} selectedNote={selectedNote} onCreate={handleCreate} onUpdate={handleUpdate} onCancel={() => { setShowEditor(false); setSelectedNote(null); }} />}
-    <div className="toolbar"><h2 className="section-title" style={{ margin: 0 }}>{view === "archive" ? "Archived notes" : view === "trash" ? "Trash" : "Your notes"} <span style={{ color: "#9aa19a", fontWeight: 500 }}>({filteredNotes.length})</span></h2><div className="filter-controls"><div className="search-wrap"><Search size={16} className="search-icon"/><input className="field" aria-label="Search notes" placeholder="Search your notes…" value={query} onChange={e => setQuery(e.target.value)} /></div><select className="field filter-select" aria-label="Filter notes by tag" value={tagFilter} onChange={e => setTagFilter(e.target.value)}><option value="">All tags</option>{availableTags.map(tag => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select><select className="field filter-select" aria-label="Sort notes" value={sort} onChange={e => setSort(e.target.value as typeof sort)}><option value="updated">Recently updated</option><option value="created">Date created</option><option value="title">Title A–Z</option></select></div></div>
+    <div className="toolbar"><h2 className="section-title" style={{ margin: 0 }}>{view === "archive" ? "Archived notes" : view === "trash" ? "Trash" : "Your notes"} <span style={{ color: "#9aa19a", fontWeight: 500 }}>({filteredNotes.length})</span></h2><div className="filter-controls"><div className="search-wrap"><Search size={16} className="search-icon"/><input className="field" aria-label="Search notes by wording or related ideas" placeholder="Search notes and related ideas…" value={query} onChange={e => setQuery(e.target.value)} /></div><select className="field filter-select" aria-label="Filter notes by tag" value={tagFilter} onChange={e => setTagFilter(e.target.value)}><option value="">All tags</option>{availableTags.map(tag => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select><select className="field filter-select" aria-label="Sort notes" value={sort} onChange={e => setSort(e.target.value as typeof sort)}><option value="updated">Recently updated</option><option value="created">Date created</option><option value="title">Title A–Z</option></select></div></div>
     <NoteList notes={filteredNotes} relations={relations} hasNotes={notes.length > 0} view={view} onDelete={handleDelete} onEdit={note => { setSelectedNote(note); setShowEditor(true); window.scrollTo({ top: 0, behavior: "smooth" }); }} onPin={handlePin} onArchive={handleArchive} onRestore={handleRestore} onPurge={handlePurge} onStatsChange={() => void loadDashboard()} />
   </main></div></div>;
 }
