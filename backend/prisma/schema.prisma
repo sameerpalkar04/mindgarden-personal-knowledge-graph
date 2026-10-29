@@ -31,6 +31,8 @@ model Note {
   isPinned   Boolean   @default(false)
   archivedAt DateTime?
   deletedAt  DateTime?
+  reminderAt DateTime?
+  dailyDate  DateTime?
 
   userId Int
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -39,6 +41,8 @@ model Note {
   outgoingLinks NoteRelation[]   @relation("SourceNote")
   incomingLinks NoteRelation[]   @relation("TargetNote")
   attachments   NoteAttachment[]
+
+  @@unique([userId, dailyDate])
 }
 
 model Tag {

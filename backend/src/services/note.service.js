@@ -114,6 +114,38 @@ async function permanentlyDeleteNote(userId, noteId) {
   return { message: "Note permanently deleted" };
 }
 
+async function getOrCreateDailyNote(userId, dateValue) {
+  const dayText = dateValue || new Date().toISOString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dayText)) throw new Error("Date must use YYYY-MM-DD format");
+  const dailyDate = new Date(`${dayText}T00:00:00.000Z`);
+  if (Number.isNaN(dailyDate.getTime()) || dailyDate.toISOString().slice(0, 10) !== dayText) throw new Error("Invalid date");
+  return prisma.note.upsert({
+    where: { userId_dailyDate: { userId, dailyDate } },
+    update: {},
+    create: {
+      userId,
+      dailyDate,
+      title: `Daily note · ${dayText}`,
+      content: "## What’s on your mind today?\n\n## One thing I learned\n\n## Tomorrow\n- [ ] ",
+    },
+  });
+}
+
+async function setNoteReminder(userId, noteId, reminderAt) {
+  const note = await prisma.note.findFirst({ where: { id: Number(noteId), userId, deletedAt: null } });
+  if (!note) throw new Error("Note not found");
+  const parsed = reminderAt ? new Date(reminderAt) : null;
+  if (parsed && Number.isNaN(parsed.getTime())) throw new Error("Invalid reminder date");
+  return prisma.note.update({ where: { id: note.id }, data: { reminderAt: parsed } });
+}
+
+async function getReminders(userId) {
+  return prisma.note.findMany({
+    where: { userId, reminderAt: { not: null }, archivedAt: null, deletedAt: null },
+    orderBy: { reminderAt: "asc" },
+  });
+}
+
 module.exports = {
   createNote,
   getNotes,
@@ -124,4 +156,7 @@ module.exports = {
   setNoteArchived,
   restoreNote,
   permanentlyDeleteNote,
+  getOrCreateDailyNote,
+  setNoteReminder,
+  getReminders,
 };

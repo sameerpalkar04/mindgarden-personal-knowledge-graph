@@ -10,5 +10,7 @@ export interface Note {
   isPinned?: boolean;
   archivedAt?: string | null;
   deletedAt?: string | null;
+  reminderAt?: string | null;
+  dailyDate?: string | null;
   tags?: Array<{ tag: Tag }>;
 }

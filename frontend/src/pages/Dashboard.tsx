@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Network, Plus, Search, Tag as TagIcon } from "lucide-react";
+import { CalendarDays, FileText, Network, Plus, Search, Tag as TagIcon } from "lucide-react";
 import { BookOpen } from "lucide-react";
 import { Link } from "react-router-dom";
 import Navbar from "../components/layout/Navbar";
 import Sidebar from "../components/layout/Sidebar";
 import NoteEditor from "../components/notes/NoteEditor";
 import NoteList from "../components/notes/NoteList";
-import { getNotes, createNote, updateNote, deleteNote, setNotePinned, setNoteArchived, restoreNote, permanentlyDeleteNote, type NoteView } from "../services/note.service";
+import { getNotes, getOrCreateDailyNote, createNote, updateNote, deleteNote, setNotePinned, setNoteArchived, restoreNote, permanentlyDeleteNote, type NoteView } from "../services/note.service";
 import { getNote } from "../services/note.service";
 import { getDrafts, type NoteDraft } from "../services/draft.service";
 import { getGraph } from "../services/graph.service";
@@ -71,6 +71,16 @@ export default function Dashboard() {
     try { await createNote(title, content); setShowEditor(false); await loadDashboard(); }
     catch (err) { setError("Your note couldn’t be saved. Please try again."); throw err; }
   }
+  async function handleDailyNote() {
+    const today = new Date();
+    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    try {
+      const response = await getOrCreateDailyNote(date);
+      setSelectedNote(response.data.data);
+      setShowEditor(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch { setError("Today’s note couldn’t be opened. Please try again."); }
+  }
   async function handleUpdate(id: number, title: string, content: string) {
     try { await updateNote(id, title, content); setSelectedNote(null); setShowEditor(false); await loadDashboard(); }
     catch (err) { setError("Your changes couldn’t be saved. Please try again."); throw err; }
@@ -125,7 +135,7 @@ export default function Dashboard() {
   }
 
   return <div className="app-shell"><Navbar /><div className="workspace"><Sidebar /><main className="main">
-    <div className="page-head"><div><div className="eyebrow">{greeting}</div><h1>Your thoughts, connected.</h1><p className="page-subtitle">A quiet place to collect ideas and see where they lead.</p></div><div className="dashboard-actions"><Link className="secondary-btn guide-action" to="/guide"><BookOpen size={16}/> How it works</Link><NoteDataTools onImported={() => void loadDashboard()} />{drafts.length > 0 && <button className="secondary-btn guide-action" onClick={() => setShowDrafts(!showDrafts)}>Drafts ({drafts.length})</button>}{view === "active" && <button className="primary-btn" onClick={() => { setSelectedNote(null); setShowEditor(!showEditor); }}><Plus size={17} /> New note</button>}</div></div>
+    <div className="page-head"><div><div className="eyebrow">{greeting}</div><h1>Your thoughts, connected.</h1><p className="page-subtitle">A quiet place to collect ideas and see where they lead.</p></div><div className="dashboard-actions"><Link className="secondary-btn guide-action" to="/guide"><BookOpen size={16}/> How it works</Link><NoteDataTools onImported={() => void loadDashboard()} />{drafts.length > 0 && <button className="secondary-btn guide-action" onClick={() => setShowDrafts(!showDrafts)}>Drafts ({drafts.length})</button>}{view === "active" && <><button className="secondary-btn" onClick={() => void handleDailyNote()}><CalendarDays size={16}/> Today’s note</button><button className="primary-btn" onClick={() => { setSelectedNote(null); setShowEditor(!showEditor); }}><Plus size={17} /> New note</button></>}</div></div>
     {showDrafts && <section className="drafts-panel"><div className="drafts-heading"><h2>Saved drafts</h2><button className="icon-btn" aria-label="Close drafts" onClick={() => setShowDrafts(false)}>×</button></div>{drafts.map((draft, index) => <button className="draft-item" key={`${draft.noteId ?? "new"}-${index}`} onClick={() => void resumeDraft(draft)}><span><strong>{draft.title || "Untitled draft"}</strong><small>{draft.noteId === null ? "New note" : "Unsaved note changes"}</small></span><time>{new Date(draft.updatedAt).toLocaleString()}</time></button>)}</section>}
     <section className="stats-grid" aria-label="Knowledge base overview">
       <div className="stat-card"><span className="stat-icon"><FileText size={18} /></span><div><div className="stat-label">Notes</div><div className="stat-value">{notes.length}</div></div></div>

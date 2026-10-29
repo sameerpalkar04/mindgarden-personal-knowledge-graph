@@ -6,6 +6,18 @@ export function getNotes(view: NoteView = "active") {
   return api.get("/notes", { params: { view } });
 }
 
+export function getOrCreateDailyNote(date: string) {
+  return api.post("/notes/daily", { date });
+}
+
+export function getReminders() {
+  return api.get("/notes/reminders");
+}
+
+export function setNoteReminder(id: number, reminderAt: string | null) {
+  return api.post(`/notes/${id}/reminder`, { reminderAt });
+}
+
 export function getNote(id: number) {
   return api.get(`/notes/${id}`);
 }

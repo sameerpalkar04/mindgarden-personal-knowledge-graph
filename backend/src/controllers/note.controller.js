@@ -33,6 +33,33 @@ async function getNotes(req, res) {
   }
 }
 
+async function getOrCreateDailyNote(req, res) {
+  try {
+    const note = await noteService.getOrCreateDailyNote(req.user.id, req.body.date);
+    return res.status(200).json({ success: true, data: note });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+}
+
+async function getReminders(req, res) {
+  try {
+    const notes = await noteService.getReminders(req.user.id);
+    return res.json({ success: true, data: notes });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+}
+
+async function setReminder(req, res) {
+  try {
+    const note = await noteService.setNoteReminder(req.user.id, req.params.id, req.body.reminderAt);
+    return res.json({ success: true, data: note });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+}
+
 async function getNoteById(req, res) {
   try {
     const note = await noteService.getNoteById(
@@ -137,6 +164,9 @@ async function permanentlyDeleteNote(req, res) {
 module.exports = {
   createNote,
   getNotes,
+  getOrCreateDailyNote,
+  getReminders,
+  setReminder,
   getNoteById,
   updateNote,
   deleteNote,
