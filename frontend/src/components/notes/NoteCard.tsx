@@ -36,6 +36,7 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
   const [reminderStatus, setReminderStatus] = useState("");
   const [history, setHistory] = useState<Array<{ id: number; title: string; content: string; createdAt: string }>>([]);
   const [historyStatus, setHistoryStatus] = useState("");
+  const [showSummary, setShowSummary] = useState(false);
   const outgoing = relations.filter(relation => relation.sourceNoteId === note.id);
   const incoming = relations.filter(relation => relation.targetNoteId === note.id);
   const suggestions = useMemo(() => {
@@ -52,6 +53,14 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
       return { note: candidate, sharedWords: sharedWords.slice(0, 3), sharedTags, connected, similarity };
     }).filter(item => !item.connected && item.similarity > 0).sort((a, b) => b.similarity - a.similarity).slice(0, 4);
   }, [allNotes, note, relations, tags]);
+  const summary = useMemo(() => {
+    const sentences = note.content.replace(/```[\s\S]*?```/g, " ").replace(/[#>*_`]/g, " ").split(/[.!?\n]+/).map(part => part.trim()).filter(part => part.length > 30);
+    if (sentences.length <= 2) return sentences.join(". ");
+    const frequency = new Map<string, number>();
+    for (const word of note.content.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) || []) frequency.set(word, (frequency.get(word) || 0) + 1);
+    return sentences.map((text, index) => ({ text, index, score: (text.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) || []).reduce((total, word) => total + (frequency.get(word) || 0), 0) / Math.sqrt(text.length) }))
+      .sort((a, b) => b.score - a.score).slice(0, 2).sort((a, b) => a.index - b.index).map(item => item.text).join(". ");
+  }, [note.content]);
 
   async function loadData() {
     try {
@@ -150,6 +159,7 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
   return <article className="note-card">
     <h3>{note.title || "Untitled note"}</h3>
     <div className="note-content markdown-card-content"><MarkdownPreview content={note.content}/></div>
+    {summary && <div className="quick-summary"><button className="summary-toggle" aria-expanded={showSummary} onClick={() => setShowSummary(!showSummary)}><Sparkles size={13}/>{showSummary ? "Hide summary" : "Quick summary"}</button>{showSummary && <p>{summary}{!/[.!?]$/.test(summary) && "."}</p>}</div>}
     {tags.length > 0 && <div className="tag-row">{tags.map(tag => <span className="tag-chip" key={tag.id}><TagIcon size={11} style={{ verticalAlign: "-2px", marginRight: 4 }}/>{tag.name}</span>)}</div>}
     {(outgoing.length > 0 || incoming.length > 0) && <div className="note-link-summary">{outgoing.length > 0 && <div><span>Links to</span>{outgoing.map(relation => <button key={`out-${relation.targetNoteId}`} onClick={() => onEdit(relation.targetNote)}>{relation.targetNote.title}<small>{relation.label}</small></button>)}</div>}{incoming.length > 0 && <div><span>Backlinks</span>{incoming.map(relation => <button key={`in-${relation.sourceNoteId}`} onClick={() => onEdit(relation.sourceNote)}>{relation.sourceNote.title}<small>{relation.label}</small></button>)}</div>}</div>}
     {suggestions.length > 0 && <div className="suggestion-section"><button className="suggestion-toggle" aria-expanded={showSuggestions} onClick={() => setShowSuggestions(!showSuggestions)}><Sparkles size={14}/> Related ideas <span>{suggestions.length}</span></button>{showSuggestions && <div className="suggestion-list">{suggestions.map(item => <div className="suggestion-item" key={item.note.id}><div><strong>{item.note.title}</strong><small>{item.sharedTags.length ? `Shares ${item.sharedTags.join(", ")}` : `Similar terms: ${item.sharedWords.join(", ")}`}</small></div><div className="suggestion-actions"><button className="suggestion-link" onClick={() => onEdit(item.note)}>Open</button><button className="suggestion-link" onClick={() => void linkSuggestion(item.note.id)}>Link</button></div></div>)}</div>}</div>}
