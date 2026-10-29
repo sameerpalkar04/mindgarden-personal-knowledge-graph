@@ -12,6 +12,13 @@ interface Props {
   onCancel: () => void;
 }
 
+const noteTemplates = [
+  { id: "meeting", label: "Meeting notes", title: "Meeting notes", content: "# Meeting notes\n\n**Date:** \n**Attendees:** \n\n## Agenda\n- \n\n## Decisions\n- \n\n## Follow-ups\n- [ ] " },
+  { id: "reading", label: "Reading notes", title: "Reading notes", content: "# Reading notes\n\n**Author:** \n**Source:** \n\n## Summary\n\n## Key ideas\n- \n\n## Questions\n- " },
+  { id: "project", label: "Project plan", title: "Project plan", content: "# Project plan\n\n## Goal\n\n## Milestones\n- [ ] \n\n## Next steps\n- [ ] \n\n## Notes\n" },
+  { id: "reflection", label: "Daily reflection", title: "Daily reflection", content: "# Daily reflection\n\n## What happened today?\n\n## One thing I learned\n\n## Tomorrow\n- [ ] " },
+];
+
 export default function NoteEditor({ selectedNote, onCreate, onUpdate, onCancel }: Props) {
   const titleRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
@@ -21,6 +28,7 @@ export default function NoteEditor({ selectedNote, onCreate, onUpdate, onCancel 
   const [content, setContent] = useState(initialDraft?.content ?? selectedNote?.content ?? "");
   const [draftStatus, setDraftStatus] = useState(initialDraft ? "Restored unsaved draft" : "");
   const [preview, setPreview] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState("");
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -43,6 +51,16 @@ export default function NoteEditor({ selectedNote, onCreate, onUpdate, onCancel 
     textarea.focus();
   }
 
+  function applyTemplate(templateId: string) {
+    const template = noteTemplates.find(item => item.id === templateId);
+    if (!template) { setSelectedTemplate(""); return; }
+    if ((title.trim() || content.trim()) && !window.confirm("Replace the current draft with this template?")) return;
+    setSelectedTemplate(templateId);
+    setTitle(template.title);
+    setContent(template.content);
+    setPreview(false);
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const noteTitle = titleRef.current?.value.trim() ?? "";
@@ -58,6 +76,7 @@ export default function NoteEditor({ selectedNote, onCreate, onUpdate, onCancel 
 
   return <form onSubmit={handleSubmit} className="editor">
     <div className="editor-heading"><h2>{selectedNote ? "Edit note" : "A new note"}</h2><div className="editor-modes" role="tablist" aria-label="Note editing mode"><button type="button" role="tab" aria-selected={!preview} className={!preview ? "selected" : ""} onClick={() => setPreview(false)}><Pencil size={14}/> Write</button><button type="button" role="tab" aria-selected={preview} className={preview ? "selected" : ""} onClick={() => setPreview(true)}><Eye size={14}/> Preview</button></div></div>
+    {!selectedNote && <label className="template-picker">Start with a template<select className="field" aria-label="Choose a note template" value={selectedTemplate} onChange={event => applyTemplate(event.target.value)}><option value="">Blank note</option>{noteTemplates.map(template => <option value={template.id} key={template.id}>{template.label}</option>)}</select></label>}
     <input ref={titleRef} value={title} onChange={event => setTitle(event.target.value)} className="field" aria-label="Note title" placeholder="Give this note a title…" required />
     {draftStatus && <p className="draft-status" role="status">{draftStatus}</p>}
     {!preview && <>
