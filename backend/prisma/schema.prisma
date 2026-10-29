@@ -36,8 +36,9 @@ model Note {
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   tags          NoteTag[]
-  outgoingLinks NoteRelation[] @relation("SourceNote")
-  incomingLinks NoteRelation[] @relation("TargetNote")
+  outgoingLinks NoteRelation[]   @relation("SourceNote")
+  incomingLinks NoteRelation[]   @relation("TargetNote")
+  attachments   NoteAttachment[]
 }
 
 model Tag {
@@ -66,4 +67,17 @@ model NoteRelation {
   targetNote Note @relation("TargetNote", fields: [targetNoteId], references: [id], onDelete: Cascade)
 
   @@id([sourceNoteId, targetNoteId])
+}
+
+model NoteAttachment {
+  id         Int      @id @default(autoincrement())
+  fileName   String
+  mimeType   String
+  size       Int
+  storageKey String   @unique
+  createdAt  DateTime @default(now())
+  noteId     Int
+  note       Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId])
 }

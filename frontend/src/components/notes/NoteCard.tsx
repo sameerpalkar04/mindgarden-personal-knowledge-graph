@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Archive, ArrowUpRight, Link2, Pencil, Pin, PinOff, Plus, RotateCcw, Sparkles, Tag as TagIcon, Trash2 } from "lucide-react";
+import { Archive, ArrowDownToLine, ArrowUpRight, Link2, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Sparkles, Tag as TagIcon, Trash2, X } from "lucide-react";
 import type { Note } from "../../types/note";
 import type { Tag } from "../../types/tag";
 import { getTags, getTagsForNote, createTag, attachTag } from "../../services/tag.service";
@@ -9,6 +9,7 @@ import MarkdownPreview from "./MarkdownPreview";
 import "../../markdown.css";
 import type { NoteView } from "../../services/note.service";
 import type { NoteRelation } from "../../types/relation";
+import { deleteAttachment, downloadAttachment, getAttachments, type NoteAttachment, uploadAttachment } from "../../services/attachment.service";
 
 interface Props { note: Note; view: NoteView; relations: NoteRelation[]; onDelete: (id: number) => void; onEdit: (note: Note) => void; onPin: (id: number, pinned: boolean) => void; onArchive: (id: number, archived: boolean) => void; onRestore: (id: number) => void; onPurge: (id: number) => void; onStatsChange: () => void; }
 
@@ -21,6 +22,8 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
   const [selectedNote, setSelectedNote] = useState("");
   const [relationType, setRelationType] = useState("related");
   const [customRelation, setCustomRelation] = useState("");
+  const [attachments, setAttachments] = useState<NoteAttachment[]>([]);
+  const [attachmentStatus, setAttachmentStatus] = useState("");
   const [showTools, setShowTools] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const outgoing = relations.filter(relation => relation.sourceNoteId === note.id);
@@ -42,19 +45,21 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
 
   async function loadData() {
     try {
-      const [noteTags, tagsResponse, notesResponse] = await Promise.all([getTagsForNote(note.id), getTags(), getNotes()]);
+      const [noteTags, tagsResponse, notesResponse, attachmentResponse] = await Promise.all([getTagsForNote(note.id), getTags(), getNotes(), getAttachments(note.id)]);
       setTags(noteTags.data.data);
       setAllTags(tagsResponse.data.data);
       setAllNotes(notesResponse.data.data.filter((item: Note) => item.id !== note.id));
+      setAttachments(attachmentResponse.data.data);
     } catch { /* The note remains readable if optional metadata fails. */ }
   }
   useEffect(() => {
     let active = true;
-    Promise.all([getTagsForNote(note.id), getTags(), getNotes()]).then(([noteTags, tagsResponse, notesResponse]) => {
+    Promise.all([getTagsForNote(note.id), getTags(), getNotes(), getAttachments(note.id)]).then(([noteTags, tagsResponse, notesResponse, attachmentResponse]) => {
       if (!active) return;
       setTags(noteTags.data.data);
       setAllTags(tagsResponse.data.data);
       setAllNotes(notesResponse.data.data.filter((item: Note) => item.id !== note.id));
+      setAttachments(attachmentResponse.data.data);
     }).catch(() => { /* The note remains readable if optional metadata fails. */ });
     return () => { active = false; };
   }, [note.id]);
@@ -82,6 +87,28 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
     catch { window.alert("This note couldn’t be linked right now."); }
   }
 
+  async function handleUpload(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { setAttachmentStatus("Files must be smaller than 8 MB."); return; }
+    setAttachmentStatus("Uploading…");
+    try {
+      const response = await uploadAttachment(note.id, file);
+      setAttachments(current => [response.data.data, ...current]);
+      setAttachmentStatus("File attached.");
+    } catch { setAttachmentStatus("Upload failed. Please try again."); }
+  }
+
+  async function handleDownload(attachment: NoteAttachment) {
+    try { await downloadAttachment(note.id, attachment); }
+    catch { setAttachmentStatus("This file couldn’t be downloaded."); }
+  }
+
+  async function handleDeleteAttachment(attachment: NoteAttachment) {
+    if (!window.confirm(`Delete “${attachment.fileName}” permanently?`)) return;
+    try { await deleteAttachment(note.id, attachment.id); setAttachments(current => current.filter(item => item.id !== attachment.id)); }
+    catch { setAttachmentStatus("This file couldn’t be deleted."); }
+  }
+
   return <article className="note-card">
     <h3>{note.title || "Untitled note"}</h3>
     <div className="note-content markdown-card-content"><MarkdownPreview content={note.content}/></div>
@@ -93,6 +120,7 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
     </div></div>
     {showTools && <div className="note-tools">
       <div className="tool-row"><input className="field" value={newTag} onChange={e => setNewTag(e.target.value)} placeholder="New tag" aria-label="New tag" onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void handleCreateTag(); } }} /><button className="secondary-btn" onClick={() => void handleCreateTag()}><Plus size={14}/> Add</button></div>
+      <div className="attachment-section"><div className="attachment-heading"><span><Paperclip size={13}/> Attachments ({attachments.length})</span><label className="attachment-add" htmlFor={`attachment-${note.id}`}>Attach file</label><input id={`attachment-${note.id}`} type="file" hidden onChange={event => { void handleUpload(event.target.files?.[0]); event.target.value = ""; }}/></div>{attachments.map(attachment => <div className="attachment-row" key={attachment.id}><span title={attachment.fileName}>{attachment.fileName}<small>{(attachment.size / 1024).toFixed(0)} KB</small></span><button className="icon-btn" title={`Download ${attachment.fileName}`} aria-label={`Download ${attachment.fileName}`} onClick={() => void handleDownload(attachment)}><ArrowDownToLine size={14}/></button><button className="icon-btn" title={`Delete ${attachment.fileName}`} aria-label={`Delete ${attachment.fileName}`} onClick={() => void handleDeleteAttachment(attachment)}><X size={14}/></button></div>)}{attachmentStatus && <small className="attachment-status" role="status">{attachmentStatus}</small>}</div>
       {allTags.length > 0 && <div className="tool-row"><select className="field" value={selectedTag} onChange={e => setSelectedTag(e.target.value)} aria-label="Choose an existing tag"><option value="">Choose a tag…</option>{allTags.filter(tag => !tags.some(existing => existing.id === tag.id)).map(tag => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select><button className="secondary-btn" onClick={() => void handleAttachTag()}>Attach</button></div>}
       {allNotes.length > 0 && <><div className="tool-row"><select className="field" value={selectedNote} onChange={e => setSelectedNote(e.target.value)} aria-label="Choose a note to connect"><option value="">Connect to a note…</option>{allNotes.map(item => <option key={item.id} value={item.id}>{item.title || "Untitled note"}</option>)}</select></div><div className="tool-row"><select className="field" value={relationType} onChange={e => setRelationType(e.target.value)} aria-label="Relationship type"><option value="related">Related</option><option value="supports">Supports</option><option value="contradicts">Contradicts</option><option value="inspired by">Inspired by</option><option value="references">References</option><option value="custom">Custom label…</option></select>{relationType === "custom" && <input className="field" maxLength={50} value={customRelation} onChange={e => setCustomRelation(e.target.value)} aria-label="Custom relationship label" placeholder="Your label"/>}<button className="secondary-btn" onClick={() => void handleCreateRelation()}><ArrowUpRight size={14}/> Link</button></div></>}
     </div>}
