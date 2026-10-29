@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Archive, ArrowUpRight, Link2, Pencil, Pin, PinOff, Plus, RotateCcw, Tag as TagIcon, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Archive, ArrowUpRight, Link2, Pencil, Pin, PinOff, Plus, RotateCcw, Sparkles, Tag as TagIcon, Trash2 } from "lucide-react";
 import type { Note } from "../../types/note";
 import type { Tag } from "../../types/tag";
 import { getTags, getTagsForNote, createTag, attachTag } from "../../services/tag.service";
@@ -22,8 +22,23 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
   const [relationType, setRelationType] = useState("related");
   const [customRelation, setCustomRelation] = useState("");
   const [showTools, setShowTools] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const outgoing = relations.filter(relation => relation.sourceNoteId === note.id);
   const incoming = relations.filter(relation => relation.targetNoteId === note.id);
+  const suggestions = useMemo(() => {
+    const stopWords = new Set(["the", "and", "for", "with", "that", "this", "from", "are", "you", "your", "was", "were", "have", "has", "but", "not", "can"]);
+    const words = (value: string) => new Set((value.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) || []).filter(word => !stopWords.has(word)));
+    const sourceWords = words(`${note.title} ${note.content}`);
+    return allNotes.map(candidate => {
+      const candidateWords = words(`${candidate.title} ${candidate.content}`);
+      const sharedWords = [...sourceWords].filter(word => candidateWords.has(word));
+      const candidateTags = candidate.tags?.map(item => item.tag.name) || [];
+      const sharedTags = tags.map(tag => tag.name).filter(name => candidateTags.includes(name));
+      const connected = relations.some(relation => (relation.sourceNoteId === note.id && relation.targetNoteId === candidate.id) || (relation.targetNoteId === note.id && relation.sourceNoteId === candidate.id));
+      const similarity = Math.round((sharedWords.length / Math.max(1, new Set([...sourceWords, ...candidateWords]).size) * 75) + (sharedTags.length ? 25 : 0));
+      return { note: candidate, sharedWords: sharedWords.slice(0, 3), sharedTags, connected, similarity };
+    }).filter(item => !item.connected && item.similarity > 0).sort((a, b) => b.similarity - a.similarity).slice(0, 4);
+  }, [allNotes, note, relations, tags]);
 
   async function loadData() {
     try {
@@ -62,11 +77,17 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
     catch { window.alert("This connection couldn’t be created."); }
   }
 
+  async function linkSuggestion(candidateId: number) {
+    try { await createRelation(note.id, candidateId); onStatsChange(); }
+    catch { window.alert("This note couldn’t be linked right now."); }
+  }
+
   return <article className="note-card">
     <h3>{note.title || "Untitled note"}</h3>
     <div className="note-content markdown-card-content"><MarkdownPreview content={note.content}/></div>
     {tags.length > 0 && <div className="tag-row">{tags.map(tag => <span className="tag-chip" key={tag.id}><TagIcon size={11} style={{ verticalAlign: "-2px", marginRight: 4 }}/>{tag.name}</span>)}</div>}
     {(outgoing.length > 0 || incoming.length > 0) && <div className="note-link-summary">{outgoing.length > 0 && <div><span>Links to</span>{outgoing.map(relation => <button key={`out-${relation.targetNoteId}`} onClick={() => onEdit(relation.targetNote)}>{relation.targetNote.title}<small>{relation.label}</small></button>)}</div>}{incoming.length > 0 && <div><span>Backlinks</span>{incoming.map(relation => <button key={`in-${relation.sourceNoteId}`} onClick={() => onEdit(relation.sourceNote)}>{relation.sourceNote.title}<small>{relation.label}</small></button>)}</div>}</div>}
+    {suggestions.length > 0 && <div className="suggestion-section"><button className="suggestion-toggle" aria-expanded={showSuggestions} onClick={() => setShowSuggestions(!showSuggestions)}><Sparkles size={14}/> Related ideas <span>{suggestions.length}</span></button>{showSuggestions && <div className="suggestion-list">{suggestions.map(item => <div className="suggestion-item" key={item.note.id}><div><strong>{item.note.title}</strong><small>{item.sharedTags.length ? `Shares ${item.sharedTags.join(", ")}` : `Similar terms: ${item.sharedWords.join(", ")}`}</small></div><div className="suggestion-actions"><button className="suggestion-link" onClick={() => onEdit(item.note)}>Open</button><button className="suggestion-link" onClick={() => void linkSuggestion(item.note.id)}>Link</button></div></div>)}</div>}</div>}
     <div className="note-meta"><span>{new Date(note.updatedAt || note.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span><div className="note-actions">
       {view === "trash" ? <><button className="icon-btn" title="Restore note" aria-label="Restore note" onClick={() => onRestore(note.id)}><RotateCcw size={15}/></button><button className="icon-btn" title="Delete permanently" aria-label="Delete permanently" onClick={() => onPurge(note.id)}><Trash2 size={15}/></button></> : <><button className="icon-btn" title="Add tags or connections" aria-label="Add tags or connections" onClick={() => setShowTools(!showTools)}><Link2 size={16}/></button><button className="icon-btn" title="Edit note" aria-label="Edit note" onClick={() => onEdit(note)}><Pencil size={15}/></button><button className="icon-btn" title={note.isPinned ? "Unpin note" : "Pin note"} aria-label={note.isPinned ? "Unpin note" : "Pin note"} onClick={() => onPin(note.id, !note.isPinned)}>{note.isPinned ? <PinOff size={15}/> : <Pin size={15}/>}</button><button className="icon-btn" title={view === "archive" ? "Restore from archive" : "Archive note"} aria-label={view === "archive" ? "Restore from archive" : "Archive note"} onClick={() => onArchive(note.id, view !== "archive")}><Archive size={15}/></button><button className="icon-btn" title="Move to trash" aria-label="Move to trash" onClick={() => onDelete(note.id)}><Trash2 size={15}/></button></>}
     </div></div>
