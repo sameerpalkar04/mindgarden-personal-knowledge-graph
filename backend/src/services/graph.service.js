@@ -40,6 +40,7 @@ async function getGraph(userId) {
     id: `${relation.sourceNoteId}-${relation.targetNoteId}`,
     source: relation.sourceNoteId.toString(),
     target: relation.targetNoteId.toString(),
+    label: relation.label,
   }));
 
   return {

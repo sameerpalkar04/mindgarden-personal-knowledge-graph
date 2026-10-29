@@ -6,10 +6,12 @@ export function getRelations() {
 
 export function createRelation(
   sourceNoteId: number,
-  targetNoteId: number
+  targetNoteId: number,
+  label = "related",
 ) {
   return api.post("/relations", {
     sourceNoteId,
     targetNoteId,
+    label,
   });
 }

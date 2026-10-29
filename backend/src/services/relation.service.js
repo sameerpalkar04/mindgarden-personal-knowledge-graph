@@ -1,6 +1,6 @@
 const prisma = require("../config/prisma");
 
-async function createRelation(sourceNoteId, targetNoteId, userId) {
+async function createRelation(sourceNoteId, targetNoteId, userId, label = "related") {
   sourceNoteId = Number(sourceNoteId);
   targetNoteId = Number(targetNoteId);
 
@@ -33,10 +33,11 @@ async function createRelation(sourceNoteId, targetNoteId, userId) {
         targetNoteId,
       },
     },
-    update: {},
+    update: { label: String(label || "related").trim().slice(0, 50) || "related" },
     create: {
       sourceNoteId,
       targetNoteId,
+      label: String(label || "related").trim().slice(0, 50) || "related",
     },
   });
 }

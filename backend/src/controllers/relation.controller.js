@@ -5,7 +5,8 @@ async function createRelation(req, res) {
     const relation = await relationService.createRelation(
       req.body.sourceNoteId,
       req.body.targetNoteId,
-      req.user.id
+      req.user.id,
+      req.body.label
     );
 
     return res.status(201).json({

@@ -60,6 +60,7 @@ model NoteTag {
 model NoteRelation {
   sourceNoteId Int
   targetNoteId Int
+  label        String @default("related")
 
   sourceNote Note @relation("SourceNote", fields: [sourceNoteId], references: [id], onDelete: Cascade)
   targetNote Note @relation("TargetNote", fields: [targetNoteId], references: [id], onDelete: Cascade)
