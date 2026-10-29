@@ -4,6 +4,8 @@ async function getGraph(userId) {
   const notes = await prisma.note.findMany({
     where: {
       userId,
+      archivedAt: null,
+      deletedAt: null,
     },
     include: {
       tags: {
@@ -16,9 +18,8 @@ async function getGraph(userId) {
 
   const relations = await prisma.noteRelation.findMany({
     where: {
-      sourceNote: {
-        userId,
-      },
+      sourceNote: { userId, archivedAt: null, deletedAt: null },
+      targetNote: { userId, archivedAt: null, deletedAt: null },
     },
   });
 

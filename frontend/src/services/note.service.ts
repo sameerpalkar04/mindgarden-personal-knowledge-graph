@@ -1,7 +1,9 @@
 import api from "./api";
 
-export function getNotes() {
-  return api.get("/notes");
+export type NoteView = "active" | "archive" | "trash";
+
+export function getNotes(view: NoteView = "active") {
+  return api.get("/notes", { params: { view } });
 }
 
 export function getNote(id: number) {
@@ -28,4 +30,20 @@ export function updateNote(
 
 export function deleteNote(id: number) {
   return api.delete(`/notes/${id}`);
+}
+
+export function setNotePinned(id: number, isPinned: boolean) {
+  return api.post(`/notes/${id}/pin`, { isPinned });
+}
+
+export function setNoteArchived(id: number, archived: boolean) {
+  return api.post(`/notes/${id}/archive`, { archived });
+}
+
+export function restoreNote(id: number) {
+  return api.post(`/notes/${id}/restore`);
+}
+
+export function permanentlyDeleteNote(id: number) {
+  return api.delete(`/notes/${id}/permanent`);
 }

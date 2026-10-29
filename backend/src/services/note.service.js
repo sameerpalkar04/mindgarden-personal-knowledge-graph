@@ -18,14 +18,20 @@ async function createNote(userId, noteData) {
   return note;
 }
 
-async function getNotes(userId) {
+async function getNotes(userId, view = "active") {
+  const where = { userId };
+  if (view === "archive") {
+    where.archivedAt = { not: null };
+    where.deletedAt = null;
+  } else if (view === "trash") {
+    where.deletedAt = { not: null };
+  } else {
+    where.archivedAt = null;
+    where.deletedAt = null;
+  }
   return await prisma.note.findMany({
-    where: {
-      userId,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
+    where,
+    orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }],
   });
 }
 
@@ -73,15 +79,38 @@ async function deleteNote(userId, noteId) {
     throw new Error("Note not found");
   }
 
-  await prisma.note.delete({
+  return await prisma.note.update({
     where: {
       id: Number(noteId),
     },
+    data: { deletedAt: new Date() },
   });
+}
 
-  return {
-    message: "Note deleted successfully",
-  };
+async function setNotePinned(userId, noteId, isPinned) {
+  const note = await prisma.note.findFirst({ where: { id: Number(noteId), userId, deletedAt: null } });
+  if (!note) throw new Error("Note not found");
+  return prisma.note.update({ where: { id: note.id }, data: { isPinned: Boolean(isPinned) } });
+}
+
+async function setNoteArchived(userId, noteId, archived) {
+  const note = await prisma.note.findFirst({ where: { id: Number(noteId), userId, deletedAt: null } });
+  if (!note) throw new Error("Note not found");
+  return prisma.note.update({ where: { id: note.id }, data: { archivedAt: archived ? new Date() : null } });
+}
+
+async function restoreNote(userId, noteId) {
+  const note = await prisma.note.findFirst({ where: { id: Number(noteId), userId, deletedAt: { not: null } } });
+  if (!note) throw new Error("Trashed note not found");
+  return prisma.note.update({ where: { id: note.id }, data: { deletedAt: null, archivedAt: null } });
+}
+
+async function permanentlyDeleteNote(userId, noteId) {
+  const note = await prisma.note.findFirst({ where: { id: Number(noteId), userId, deletedAt: { not: null } } });
+  if (!note) throw new Error("Trashed note not found");
+  await prisma.note.delete({ where: { id: note.id } });
+
+  return { message: "Note permanently deleted" };
 }
 
 module.exports = {
@@ -90,4 +119,8 @@ module.exports = {
   getNoteById,
   updateNote,
   deleteNote,
+  setNotePinned,
+  setNoteArchived,
+  restoreNote,
+  permanentlyDeleteNote,
 };

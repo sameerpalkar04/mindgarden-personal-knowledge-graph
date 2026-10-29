@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowUpRight, Link2, Pencil, Plus, Tag as TagIcon, Trash2 } from "lucide-react";
+import { Archive, ArrowUpRight, Link2, Pencil, Pin, PinOff, Plus, RotateCcw, Tag as TagIcon, Trash2 } from "lucide-react";
 import type { Note } from "../../types/note";
 import type { Tag } from "../../types/tag";
 import { getTags, getTagsForNote, createTag, attachTag } from "../../services/tag.service";
@@ -7,10 +7,11 @@ import { createRelation } from "../../services/relation.service";
 import { getNotes } from "../../services/note.service";
 import MarkdownPreview from "./MarkdownPreview";
 import "../../markdown.css";
+import type { NoteView } from "../../services/note.service";
 
-interface Props { note: Note; onDelete: (id: number) => void; onEdit: (note: Note) => void; onStatsChange: () => void; }
+interface Props { note: Note; view: NoteView; onDelete: (id: number) => void; onEdit: (note: Note) => void; onPin: (id: number, pinned: boolean) => void; onArchive: (id: number, archived: boolean) => void; onRestore: (id: number) => void; onPurge: (id: number) => void; onStatsChange: () => void; }
 
-export default function NoteCard({ note, onDelete, onEdit, onStatsChange }: Props) {
+export default function NoteCard({ note, view, onDelete, onEdit, onPin, onArchive, onRestore, onPurge, onStatsChange }: Props) {
   const [tags, setTags] = useState<Tag[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [allNotes, setAllNotes] = useState<Note[]>([]);
@@ -59,9 +60,7 @@ export default function NoteCard({ note, onDelete, onEdit, onStatsChange }: Prop
     <div className="note-content markdown-card-content"><MarkdownPreview content={note.content}/></div>
     {tags.length > 0 && <div className="tag-row">{tags.map(tag => <span className="tag-chip" key={tag.id}><TagIcon size={11} style={{ verticalAlign: "-2px", marginRight: 4 }}/>{tag.name}</span>)}</div>}
     <div className="note-meta"><span>{new Date(note.updatedAt || note.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span><div className="note-actions">
-      <button className="icon-btn" title="Add tags or connections" aria-label="Add tags or connections" onClick={() => setShowTools(!showTools)}><Link2 size={16}/></button>
-      <button className="icon-btn" title="Edit note" aria-label="Edit note" onClick={() => onEdit(note)}><Pencil size={15}/></button>
-      <button className="icon-btn" title="Delete note" aria-label="Delete note" onClick={() => onDelete(note.id)}><Trash2 size={15}/></button>
+      {view === "trash" ? <><button className="icon-btn" title="Restore note" aria-label="Restore note" onClick={() => onRestore(note.id)}><RotateCcw size={15}/></button><button className="icon-btn" title="Delete permanently" aria-label="Delete permanently" onClick={() => onPurge(note.id)}><Trash2 size={15}/></button></> : <><button className="icon-btn" title="Add tags or connections" aria-label="Add tags or connections" onClick={() => setShowTools(!showTools)}><Link2 size={16}/></button><button className="icon-btn" title="Edit note" aria-label="Edit note" onClick={() => onEdit(note)}><Pencil size={15}/></button><button className="icon-btn" title={note.isPinned ? "Unpin note" : "Pin note"} aria-label={note.isPinned ? "Unpin note" : "Pin note"} onClick={() => onPin(note.id, !note.isPinned)}>{note.isPinned ? <PinOff size={15}/> : <Pin size={15}/>}</button><button className="icon-btn" title={view === "archive" ? "Restore from archive" : "Archive note"} aria-label={view === "archive" ? "Restore from archive" : "Archive note"} onClick={() => onArchive(note.id, view !== "archive")}><Archive size={15}/></button><button className="icon-btn" title="Move to trash" aria-label="Move to trash" onClick={() => onDelete(note.id)}><Trash2 size={15}/></button></>}
     </div></div>
     {showTools && <div className="note-tools">
       <div className="tool-row"><input className="field" value={newTag} onChange={e => setNewTag(e.target.value)} placeholder="New tag" aria-label="New tag" onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void handleCreateTag(); } }} /><button className="secondary-btn" onClick={() => void handleCreateTag()}><Plus size={14}/> Add</button></div>

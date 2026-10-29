@@ -18,7 +18,8 @@ async function createNote(req, res) {
 
 async function getNotes(req, res) {
   try {
-    const notes = await noteService.getNotes(req.user.id);
+    const view = ["active", "archive", "trash"].includes(req.query.view) ? req.query.view : "active";
+    const notes = await noteService.getNotes(req.user.id, view);
 
     res.status(200).json({
       success: true,
@@ -97,10 +98,50 @@ async function deleteNote(req, res) {
   }
 }
 
+async function setNotePinned(req, res) {
+  try {
+    const note = await noteService.setNotePinned(req.user.id, req.params.id, req.body.isPinned);
+    return res.json({ success: true, data: note });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+}
+
+async function setNoteArchived(req, res) {
+  try {
+    const note = await noteService.setNoteArchived(req.user.id, req.params.id, req.body.archived);
+    return res.json({ success: true, data: note });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+}
+
+async function restoreNote(req, res) {
+  try {
+    const note = await noteService.restoreNote(req.user.id, req.params.id);
+    return res.json({ success: true, data: note });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+}
+
+async function permanentlyDeleteNote(req, res) {
+  try {
+    const result = await noteService.permanentlyDeleteNote(req.user.id, req.params.id);
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+}
+
 module.exports = {
   createNote,
   getNotes,
   getNoteById,
   updateNote,
   deleteNote,
+  setNotePinned,
+  setNoteArchived,
+  restoreNote,
+  permanentlyDeleteNote,
 };

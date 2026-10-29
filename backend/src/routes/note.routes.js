@@ -8,6 +8,10 @@ router.use(authenticate);
 
 router.post("/", noteController.createNote);
 router.get("/", noteController.getNotes);
+router.post("/:id/pin", noteController.setNotePinned);
+router.post("/:id/archive", noteController.setNoteArchived);
+router.post("/:id/restore", noteController.restoreNote);
+router.delete("/:id/permanent", noteController.permanentlyDeleteNote);
 router.get("/:id", noteController.getNoteById);
 router.put("/:id", noteController.updateNote);
 router.delete("/:id", noteController.deleteNote);
