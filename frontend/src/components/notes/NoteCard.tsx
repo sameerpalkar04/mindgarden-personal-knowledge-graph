@@ -5,6 +5,8 @@ import type { Tag } from "../../types/tag";
 import { getTags, getTagsForNote, createTag, attachTag } from "../../services/tag.service";
 import { createRelation } from "../../services/relation.service";
 import { getNotes } from "../../services/note.service";
+import MarkdownPreview from "./MarkdownPreview";
+import "../../markdown.css";
 
 interface Props { note: Note; onDelete: (id: number) => void; onEdit: (note: Note) => void; onStatsChange: () => void; }
 
@@ -54,7 +56,7 @@ export default function NoteCard({ note, onDelete, onEdit, onStatsChange }: Prop
 
   return <article className="note-card">
     <h3>{note.title || "Untitled note"}</h3>
-    <p className="note-content">{note.content}</p>
+    <div className="note-content markdown-card-content"><MarkdownPreview content={note.content}/></div>
     {tags.length > 0 && <div className="tag-row">{tags.map(tag => <span className="tag-chip" key={tag.id}><TagIcon size={11} style={{ verticalAlign: "-2px", marginRight: 4 }}/>{tag.name}</span>)}</div>}
     <div className="note-meta"><span>{new Date(note.updatedAt || note.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span><div className="note-actions">
       <button className="icon-btn" title="Add tags or connections" aria-label="Add tags or connections" onClick={() => setShowTools(!showTools)}><Link2 size={16}/></button>

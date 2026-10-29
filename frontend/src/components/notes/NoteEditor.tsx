@@ -1,6 +1,8 @@
-import { useRef } from "react";
-import { Check, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { Bold, Check, Code2, Eye, Heading2, List, ListChecks, Pencil, X } from "lucide-react";
 import type { Note } from "../../types/note";
+import MarkdownPreview from "./MarkdownPreview";
+import "../../markdown.css";
 
 interface Props {
   selectedNote: Note | null;
@@ -9,57 +11,46 @@ interface Props {
   onCancel: () => void;
 }
 
-export default function NoteEditor({
-  selectedNote,
-  onCreate,
-  onUpdate,
-  onCancel,
-}: Props) {
+export default function NoteEditor({ selectedNote, onCreate, onUpdate, onCancel }: Props) {
   const titleRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  const [content, setContent] = useState(selectedNote?.content ?? "");
+  const [preview, setPreview] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const title = titleRef.current?.value.trim() ?? "";
-    const content = contentRef.current?.value.trim() ?? "";
-    if (!title || !content) return;
-
-    if (selectedNote) {
-      onUpdate(selectedNote.id, title, content);
-    } else {
-      onCreate(title, content);
-    }
-
+  function insertMarkdown(prefix: string, suffix = "", placeholder = "text") {
+    const textarea = contentRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = textarea.value.slice(start, end) || placeholder;
+    textarea.setRangeText(`${prefix}${selected}${suffix}`, start, end, "select");
+    setContent(textarea.value);
+    textarea.focus();
   }
 
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="editor"
-    >
-      <h2>
-        {selectedNote ? "Edit note" : "A new note"}
-      </h2>
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    const title = titleRef.current?.value.trim() ?? "";
+    if (!title || !content.trim()) return;
+    if (selectedNote) onUpdate(selectedNote.id, title, content.trim());
+    else onCreate(title, content.trim());
+  }
 
-      <input
-        ref={titleRef}
-        defaultValue={selectedNote?.title ?? ""}
-        className="field"
-        aria-label="Note title"
-        placeholder="Give this note a title…"
-        required
-      />
-
-      <textarea
-        ref={contentRef}
-        defaultValue={selectedNote?.content ?? ""}
-        rows={6}
-        className="field"
-        aria-label="Note content"
-        placeholder="Start writing. You can add tags and connections after saving."
-        required
-      />
-      <div className="editor-actions"><button type="button" className="secondary-btn" onClick={onCancel}><X size={15}/> Cancel</button><button type="submit" className="primary-btn"><Check size={15}/>{selectedNote ? "Save changes" : "Save note"}</button></div>
-    </form>
-  );
+  return <form onSubmit={handleSubmit} className="editor">
+    <div className="editor-heading"><h2>{selectedNote ? "Edit note" : "A new note"}</h2><div className="editor-modes" role="tablist" aria-label="Note editing mode"><button type="button" role="tab" aria-selected={!preview} className={!preview ? "selected" : ""} onClick={() => setPreview(false)}><Pencil size={14}/> Write</button><button type="button" role="tab" aria-selected={preview} className={preview ? "selected" : ""} onClick={() => setPreview(true)}><Eye size={14}/> Preview</button></div></div>
+    <input ref={titleRef} defaultValue={selectedNote?.title ?? ""} className="field" aria-label="Note title" placeholder="Give this note a title…" required />
+    {!preview && <>
+      <div className="markdown-toolbar" aria-label="Markdown formatting">
+        <button type="button" title="Heading" aria-label="Insert heading" onClick={() => insertMarkdown("## ", "", "Heading")}><Heading2 size={16}/></button>
+        <button type="button" title="Bold" aria-label="Bold text" onClick={() => insertMarkdown("**", "**")}><Bold size={15}/></button>
+        <button type="button" title="Bullet list" aria-label="Insert bullet list" onClick={() => insertMarkdown("- ", "", "List item")}><List size={16}/></button>
+        <button type="button" title="Checklist" aria-label="Insert checklist item" onClick={() => insertMarkdown("- [ ] ", "", "Task")}><ListChecks size={16}/></button>
+        <button type="button" title="Inline code" aria-label="Insert inline code" onClick={() => insertMarkdown("`", "`", "code")}><Code2 size={15}/></button>
+        <span className="markdown-hint">Markdown supported</span>
+      </div>
+      <textarea ref={contentRef} value={content} onChange={event => setContent(event.target.value)} rows={8} className="field markdown-source" aria-label="Note content in Markdown" placeholder="Start writing… Use # for headings, - for lists, **bold**, or `code`." required />
+    </>}
+    {preview && <div className="markdown-preview-frame"><MarkdownPreview content={content}/></div>}
+    <div className="editor-actions"><button type="button" className="secondary-btn" onClick={onCancel}><X size={15}/> Cancel</button><button type="submit" className="primary-btn"><Check size={15}/>{selectedNote ? "Save changes" : "Save note"}</button></div>
+  </form>;
 }
