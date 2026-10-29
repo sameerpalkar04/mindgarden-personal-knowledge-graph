@@ -15,6 +15,7 @@ import type { Note } from "../types/note";
 import type { Tag } from "../types/tag";
 import type { NoteRelation } from "../types/relation";
 import { getRelations } from "../services/relation.service";
+import NoteDataTools from "../components/notes/NoteDataTools";
 import "../user-guide.css";
 import "../filters.css";
 
@@ -124,7 +125,7 @@ export default function Dashboard() {
   }
 
   return <div className="app-shell"><Navbar /><div className="workspace"><Sidebar /><main className="main">
-    <div className="page-head"><div><div className="eyebrow">{greeting}</div><h1>Your thoughts, connected.</h1><p className="page-subtitle">A quiet place to collect ideas and see where they lead.</p></div><div className="dashboard-actions"><Link className="secondary-btn guide-action" to="/guide"><BookOpen size={16}/> How it works</Link>{drafts.length > 0 && <button className="secondary-btn guide-action" onClick={() => setShowDrafts(!showDrafts)}>Drafts ({drafts.length})</button>}{view === "active" && <button className="primary-btn" onClick={() => { setSelectedNote(null); setShowEditor(!showEditor); }}><Plus size={17} /> New note</button>}</div></div>
+    <div className="page-head"><div><div className="eyebrow">{greeting}</div><h1>Your thoughts, connected.</h1><p className="page-subtitle">A quiet place to collect ideas and see where they lead.</p></div><div className="dashboard-actions"><Link className="secondary-btn guide-action" to="/guide"><BookOpen size={16}/> How it works</Link><NoteDataTools onImported={() => void loadDashboard()} />{drafts.length > 0 && <button className="secondary-btn guide-action" onClick={() => setShowDrafts(!showDrafts)}>Drafts ({drafts.length})</button>}{view === "active" && <button className="primary-btn" onClick={() => { setSelectedNote(null); setShowEditor(!showEditor); }}><Plus size={17} /> New note</button>}</div></div>
     {showDrafts && <section className="drafts-panel"><div className="drafts-heading"><h2>Saved drafts</h2><button className="icon-btn" aria-label="Close drafts" onClick={() => setShowDrafts(false)}>×</button></div>{drafts.map((draft, index) => <button className="draft-item" key={`${draft.noteId ?? "new"}-${index}`} onClick={() => void resumeDraft(draft)}><span><strong>{draft.title || "Untitled draft"}</strong><small>{draft.noteId === null ? "New note" : "Unsaved note changes"}</small></span><time>{new Date(draft.updatedAt).toLocaleString()}</time></button>)}</section>}
     <section className="stats-grid" aria-label="Knowledge base overview">
       <div className="stat-card"><span className="stat-icon"><FileText size={18} /></span><div><div className="stat-label">Notes</div><div className="stat-value">{notes.length}</div></div></div>
