@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Archive, ArrowDownToLine, ArrowUpRight, Bell, Link2, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Sparkles, Tag as TagIcon, Trash2, X } from "lucide-react";
+import { Archive, ArrowDownToLine, ArrowUpRight, Bell, History, Link2, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Sparkles, Tag as TagIcon, Trash2, X } from "lucide-react";
 import type { Note } from "../../types/note";
 import type { Tag } from "../../types/tag";
 import { getTags, getTagsForNote, createTag, attachTag } from "../../services/tag.service";
 import { createRelation } from "../../services/relation.service";
-import { getNotes, setNoteReminder } from "../../services/note.service";
+import { getNoteHistory, getNotes, restoreNoteRevision, setNoteReminder } from "../../services/note.service";
 import MarkdownPreview from "./MarkdownPreview";
 import "../../markdown.css";
 import type { NoteView } from "../../services/note.service";
@@ -34,6 +34,8 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [reminderValue, setReminderValue] = useState(() => toLocalInput(note.reminderAt));
   const [reminderStatus, setReminderStatus] = useState("");
+  const [history, setHistory] = useState<Array<{ id: number; title: string; content: string; createdAt: string }>>([]);
+  const [historyStatus, setHistoryStatus] = useState("");
   const outgoing = relations.filter(relation => relation.sourceNoteId === note.id);
   const incoming = relations.filter(relation => relation.targetNoteId === note.id);
   const suggestions = useMemo(() => {
@@ -127,6 +129,24 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
     } catch { setReminderStatus("Reminder couldn’t be saved."); }
   }
 
+  async function loadHistory() {
+    setHistoryStatus("Loading history…");
+    try {
+      const response = await getNoteHistory(note.id);
+      setHistory(response.data.data);
+      setHistoryStatus(response.data.data.length ? "" : "No earlier versions yet.");
+    } catch { setHistoryStatus("History couldn’t be loaded."); }
+  }
+
+  async function restoreRevision(revisionId: number) {
+    if (!window.confirm("Restore this version? The current note will be saved as a version first.")) return;
+    try {
+      await restoreNoteRevision(note.id, revisionId);
+      await loadHistory();
+      onStatsChange();
+    } catch { setHistoryStatus("This version couldn’t be restored."); }
+  }
+
   return <article className="note-card">
     <h3>{note.title || "Untitled note"}</h3>
     <div className="note-content markdown-card-content"><MarkdownPreview content={note.content}/></div>
@@ -139,6 +159,7 @@ export default function NoteCard({ note, view, relations, onDelete, onEdit, onPi
     {note.reminderAt && <div className="note-reminder"><Bell size={12}/> Reminder · {new Date(note.reminderAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</div>}
     {showTools && <div className="note-tools">
       <div className="reminder-tools"><label htmlFor={`reminder-${note.id}`}><Bell size={13}/> Remind me</label><div><input id={`reminder-${note.id}`} className="field" type="datetime-local" value={reminderValue} onChange={event => setReminderValue(event.target.value)}/><button className="secondary-btn" disabled={!reminderValue} onClick={() => void saveReminder(reminderValue)}>Save</button>{note.reminderAt && <button className="icon-btn" aria-label="Clear reminder" title="Clear reminder" onClick={() => void saveReminder(null)}><X size={14}/></button>}</div>{reminderStatus && <small role="status">{reminderStatus}</small>}</div>
+      <div className="history-tools"><button className="history-toggle" onClick={() => void loadHistory()}><History size={13}/> Version history</button>{historyStatus && <small role="status">{historyStatus}</small>}{history.map(revision => <div className="history-item" key={revision.id}><span><strong>{revision.title || "Untitled note"}</strong><small>{new Date(revision.createdAt).toLocaleString()}</small><small>{revision.content.slice(0, 130)}{revision.content.length > 130 ? "…" : ""}</small></span><button className="secondary-btn" onClick={() => void restoreRevision(revision.id)}>Restore</button></div>)}</div>
       <div className="tool-row"><input className="field" value={newTag} onChange={e => setNewTag(e.target.value)} placeholder="New tag" aria-label="New tag" onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void handleCreateTag(); } }} /><button className="secondary-btn" onClick={() => void handleCreateTag()}><Plus size={14}/> Add</button></div>
       <div className="attachment-section"><div className="attachment-heading"><span><Paperclip size={13}/> Attachments ({attachments.length})</span><label className="attachment-add" htmlFor={`attachment-${note.id}`}>Attach file</label><input id={`attachment-${note.id}`} type="file" hidden onChange={event => { void handleUpload(event.target.files?.[0]); event.target.value = ""; }}/></div>{attachments.map(attachment => <div className="attachment-row" key={attachment.id}><span title={attachment.fileName}>{attachment.fileName}<small>{(attachment.size / 1024).toFixed(0)} KB</small></span><button className="icon-btn" title={`Download ${attachment.fileName}`} aria-label={`Download ${attachment.fileName}`} onClick={() => void handleDownload(attachment)}><ArrowDownToLine size={14}/></button><button className="icon-btn" title={`Delete ${attachment.fileName}`} aria-label={`Delete ${attachment.fileName}`} onClick={() => void handleDeleteAttachment(attachment)}><X size={14}/></button></div>)}{attachmentStatus && <small className="attachment-status" role="status">{attachmentStatus}</small>}</div>
       {allTags.length > 0 && <div className="tool-row"><select className="field" value={selectedTag} onChange={e => setSelectedTag(e.target.value)} aria-label="Choose an existing tag"><option value="">Choose a tag…</option>{allTags.filter(tag => !tags.some(existing => existing.id === tag.id)).map(tag => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select><button className="secondary-btn" onClick={() => void handleAttachTag()}>Attach</button></div>}

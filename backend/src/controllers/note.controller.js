@@ -106,6 +106,20 @@ async function updateNote(req, res) {
   }
 }
 
+async function getNoteHistory(req, res) {
+  try {
+    const revisions = await noteService.getNoteHistory(req.user.id, req.params.id);
+    return res.json({ success: true, data: revisions });
+  } catch (error) { return res.status(404).json({ success: false, message: error.message }); }
+}
+
+async function restoreNoteRevision(req, res) {
+  try {
+    const note = await noteService.restoreNoteRevision(req.user.id, req.params.id, req.params.revisionId);
+    return res.json({ success: true, data: note });
+  } catch (error) { return res.status(400).json({ success: false, message: error.message }); }
+}
+
 async function deleteNote(req, res) {
   try {
     const result = await noteService.deleteNote(
@@ -169,6 +183,8 @@ module.exports = {
   setReminder,
   getNoteById,
   updateNote,
+  getNoteHistory,
+  restoreNoteRevision,
   deleteNote,
   setNotePinned,
   setNoteArchived,

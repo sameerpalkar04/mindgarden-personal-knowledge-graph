@@ -41,6 +41,7 @@ model Note {
   outgoingLinks NoteRelation[]   @relation("SourceNote")
   incomingLinks NoteRelation[]   @relation("TargetNote")
   attachments   NoteAttachment[]
+  revisions     NoteRevision[]
 
   @@unique([userId, dailyDate])
 }
@@ -84,4 +85,15 @@ model NoteAttachment {
   note       Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
 
   @@index([noteId])
+}
+
+model NoteRevision {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+  noteId    Int
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId, createdAt])
 }

@@ -12,6 +12,8 @@ router.post("/daily", noteController.getOrCreateDailyNote);
 router.get("/reminders", noteController.getReminders);
 router.get("/", noteController.getNotes);
 router.post("/:id/reminder", noteController.setReminder);
+router.get("/:id/history", noteController.getNoteHistory);
+router.post("/:id/history/:revisionId/restore", noteController.restoreNoteRevision);
 router.get("/:id/attachments", attachmentController.list);
 router.post("/:id/attachments", attachmentController.create);
 router.get("/:id/attachments/:attachmentId", attachmentController.download);

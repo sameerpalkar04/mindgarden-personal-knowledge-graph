@@ -18,6 +18,14 @@ export function setNoteReminder(id: number, reminderAt: string | null) {
   return api.post(`/notes/${id}/reminder`, { reminderAt });
 }
 
+export function getNoteHistory(id: number) {
+  return api.get(`/notes/${id}/history`);
+}
+
+export function restoreNoteRevision(id: number, revisionId: number) {
+  return api.post(`/notes/${id}/history/${revisionId}/restore`);
+}
+
 export function getNote(id: number) {
   return api.get(`/notes/${id}`);
 }

@@ -57,6 +57,9 @@ async function updateNote(userId, noteId, noteData) {
     throw new Error("Note not found");
   }
 
+  if (note.title !== noteData.title || note.content !== noteData.content) {
+    await prisma.noteRevision.create({ data: { noteId: note.id, title: note.title, content: note.content } });
+  }
   return await prisma.note.update({
     where: {
       id: Number(noteId),
@@ -66,6 +69,21 @@ async function updateNote(userId, noteId, noteData) {
       content: noteData.content,
     },
   });
+}
+
+async function getNoteHistory(userId, noteId) {
+  const note = await prisma.note.findFirst({ where: { id: Number(noteId), userId } });
+  if (!note) throw new Error("Note not found");
+  return prisma.noteRevision.findMany({ where: { noteId: note.id }, orderBy: { createdAt: "desc" } });
+}
+
+async function restoreNoteRevision(userId, noteId, revisionId) {
+  const note = await prisma.note.findFirst({ where: { id: Number(noteId), userId } });
+  if (!note) throw new Error("Note not found");
+  const revision = await prisma.noteRevision.findFirst({ where: { id: Number(revisionId), noteId: note.id } });
+  if (!revision) throw new Error("Revision not found");
+  await prisma.noteRevision.create({ data: { noteId: note.id, title: note.title, content: note.content } });
+  return prisma.note.update({ where: { id: note.id }, data: { title: revision.title, content: revision.content } });
 }
 
 async function deleteNote(userId, noteId) {
@@ -151,6 +169,8 @@ module.exports = {
   getNotes,
   getNoteById,
   updateNote,
+  getNoteHistory,
+  restoreNoteRevision,
   deleteNote,
   setNotePinned,
   setNoteArchived,
