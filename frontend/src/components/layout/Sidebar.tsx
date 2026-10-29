@@ -1,46 +1,10 @@
-import { Link } from "react-router-dom";
+import { NavLink } from "react-router-dom";
+import { BookOpen, LayoutDashboard, Network } from "lucide-react";
 
 export default function Sidebar() {
-  return (
-    <div
-      style={{
-        width: "220px",
-        background: "#374151",
-        minHeight: "calc(100vh - 70px)",
-        padding: "20px",
-      }}
-    >
-      <div style={{ marginBottom: "20px" }}>
-        <Link
-          to="/dashboard"
-          style={{
-            color: "white",
-            textDecoration: "none",
-            display: "block",
-            textAlign: "left",
-            fontSize: "18px",
-            fontWeight: "500",
-          }}
-        >
-          Dashboard
-        </Link>
-      </div>
-
-      <div style={{ marginBottom: "20px" }}>
-        <Link
-          to="/graph"
-          style={{
-            color: "white",
-            textDecoration: "none",
-            display: "block",
-            textAlign: "left",
-            fontSize: "18px",
-            fontWeight: "500",
-          }}
-        >
-          Knowledge Graph
-        </Link>
-      </div>
-    </div>
-  );
+  return <aside className="sidebar"><div className="side-label">YOUR SPACE</div>
+    <NavLink to="/dashboard" className={({ isActive }) => `side-link ${isActive ? "active" : ""}`}><LayoutDashboard size={17} /> Notes</NavLink>
+    <NavLink to="/graph" className={({ isActive }) => `side-link ${isActive ? "active" : ""}`}><Network size={17} /> Knowledge graph</NavLink>
+    <NavLink to="/guide" className={({ isActive }) => `side-link ${isActive ? "active" : ""}`}><BookOpen size={17} /> User guide</NavLink>
+  </aside>;
 }

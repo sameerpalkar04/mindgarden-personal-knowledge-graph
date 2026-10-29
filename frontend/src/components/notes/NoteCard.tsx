@@ -1,271 +1,70 @@
 import { useEffect, useState } from "react";
-
+import { ArrowUpRight, Link2, Pencil, Plus, Tag as TagIcon, Trash2 } from "lucide-react";
 import type { Note } from "../../types/note";
 import type { Tag } from "../../types/tag";
-
-import {
-  getTags,
-  getTagsForNote,
-  createTag,
-  attachTag,
-} from "../../services/tag.service";
-
+import { getTags, getTagsForNote, createTag, attachTag } from "../../services/tag.service";
 import { createRelation } from "../../services/relation.service";
 import { getNotes } from "../../services/note.service";
 
-import TagList from "../tags/TagList";
+interface Props { note: Note; onDelete: (id: number) => void; onEdit: (note: Note) => void; onStatsChange: () => void; }
 
-interface Props {
-  note: Note;
-  onDelete: (id: number) => void;
-  onEdit: (note: Note) => void;
-}
-
-export default function NoteCard({
-  note,
-  onDelete,
-  onEdit,
-}: Props) {
+export default function NoteCard({ note, onDelete, onEdit, onStatsChange }: Props) {
   const [tags, setTags] = useState<Tag[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [allNotes, setAllNotes] = useState<Note[]>([]);
-
   const [newTag, setNewTag] = useState("");
   const [selectedTag, setSelectedTag] = useState("");
   const [selectedNote, setSelectedNote] = useState("");
+  const [showTools, setShowTools] = useState(false);
 
   async function loadData() {
     try {
-      const noteTags = await getTagsForNote(note.id);
+      const [noteTags, tagsResponse, notesResponse] = await Promise.all([getTagsForNote(note.id), getTags(), getNotes()]);
       setTags(noteTags.data.data);
-
-      const tags = await getTags();
-      setAllTags(tags.data.data);
-
-      const notes = await getNotes();
-
-      setAllNotes(
-        notes.data.data.filter(
-          (n: Note) => n.id !== note.id
-        )
-      );
-    } catch (err) {
-      console.error(err);
-    }
+      setAllTags(tagsResponse.data.data);
+      setAllNotes(notesResponse.data.data.filter((item: Note) => item.id !== note.id));
+    } catch { /* The note remains readable if optional metadata fails. */ }
   }
-
   useEffect(() => {
-    loadData();
+    let active = true;
+    Promise.all([getTagsForNote(note.id), getTags(), getNotes()]).then(([noteTags, tagsResponse, notesResponse]) => {
+      if (!active) return;
+      setTags(noteTags.data.data);
+      setAllTags(tagsResponse.data.data);
+      setAllNotes(notesResponse.data.data.filter((item: Note) => item.id !== note.id));
+    }).catch(() => { /* The note remains readable if optional metadata fails. */ });
+    return () => { active = false; };
   }, [note.id]);
 
   async function handleCreateTag() {
     if (!newTag.trim()) return;
-
-    try {
-      const response = await createTag(newTag);
-
-      await attachTag(note.id, response.data.data.id);
-
-      setNewTag("");
-
-      loadData();
-    } catch (err) {
-      console.error(err);
-    }
+    try { const response = await createTag(newTag.trim()); await attachTag(note.id, response.data.data.id); setNewTag(""); await loadData(); onStatsChange(); }
+    catch { window.alert("This tag couldn’t be added. It may already be attached to this note."); }
   }
-
   async function handleAttachTag() {
     if (!selectedTag) return;
-
-    try {
-      await attachTag(
-        note.id,
-        Number(selectedTag)
-      );
-
-      setSelectedTag("");
-
-      loadData();
-    } catch (err) {
-      console.error(err);
-    }
+    try { await attachTag(note.id, Number(selectedTag)); setSelectedTag(""); await loadData(); onStatsChange(); }
+    catch { window.alert("This tag couldn’t be attached to the note."); }
   }
-
   async function handleCreateRelation() {
     if (!selectedNote) return;
-
-    try {
-      await createRelation(
-        note.id,
-        Number(selectedNote)
-      );
-
-      alert("Relation created!");
-
-      setSelectedNote("");
-    } catch (err) {
-      console.error(err);
-    }
+    try { await createRelation(note.id, Number(selectedNote)); setSelectedNote(""); setShowTools(false); onStatsChange(); }
+    catch { window.alert("This connection couldn’t be created."); }
   }
 
-  return (
-    <div
-      style={{
-        background: "white",
-        padding: "20px",
-        borderRadius: "10px",
-        border: "1px solid #ddd",
-        marginBottom: "20px",
-      }}
-    >
-      <h2>{note.title}</h2>
-
-      <p>{note.content}</p>
-
-      <h4>Tags</h4>
-
-      <TagList tags={tags} />
-
-      <div
-        style={{
-          marginTop: "15px",
-          display: "flex",
-          gap: "10px",
-        }}
-      >
-        <input
-          placeholder="New Tag"
-          value={newTag}
-          onChange={(e) =>
-            setNewTag(e.target.value)
-          }
-        />
-
-        <button onClick={handleCreateTag}>
-          Create Tag
-        </button>
-      </div>
-
-      <div
-        style={{
-          marginTop: "10px",
-          display: "flex",
-          gap: "10px",
-        }}
-      >
-        <select
-          value={selectedTag}
-          onChange={(e) =>
-            setSelectedTag(e.target.value)
-          }
-        >
-          <option value="">
-            Select Existing Tag
-          </option>
-
-          {allTags.map((tag) => (
-            <option
-              key={tag.id}
-              value={tag.id}
-            >
-              {tag.name}
-            </option>
-          ))}
-        </select>
-
-        <button onClick={handleAttachTag}>
-          Attach Tag
-        </button>
-      </div>
-
-      <hr
-        style={{
-          marginTop: "20px",
-          marginBottom: "20px",
-        }}
-      />
-
-      <h4>Create Relation</h4>
-
-      <div
-        style={{
-          display: "flex",
-          gap: "10px",
-        }}
-      >
-        <select
-          value={selectedNote}
-          onChange={(e) =>
-            setSelectedNote(e.target.value)
-          }
-        >
-          <option value="">
-            Select Note
-          </option>
-
-          {allNotes.map((n) => (
-            <option
-              key={n.id}
-              value={n.id}
-            >
-              {n.title}
-            </option>
-          ))}
-        </select>
-
-        <button
-          onClick={handleCreateRelation}
-        >
-          Link Notes
-        </button>
-      </div>
-
-      <br />
-
-      <small>
-        Created:{" "}
-        {new Date(
-          note.createdAt
-        ).toLocaleDateString()}
-      </small>
-
-      <div
-        style={{
-          marginTop: "20px",
-          display: "flex",
-          gap: "10px",
-        }}
-      >
-        <button
-          onClick={() => onEdit(note)}
-          style={{
-            padding: "8px 16px",
-            background: "#2563eb",
-            color: "white",
-            border: "none",
-            borderRadius: "5px",
-            cursor: "pointer",
-          }}
-        >
-          Edit
-        </button>
-
-        <button
-          onClick={() =>
-            onDelete(note.id)
-          }
-          style={{
-            padding: "8px 16px",
-            background: "#dc2626",
-            color: "white",
-            border: "none",
-            borderRadius: "5px",
-            cursor: "pointer",
-          }}
-        >
-          Delete
-        </button>
-      </div>
-    </div>
-  );
+  return <article className="note-card">
+    <h3>{note.title || "Untitled note"}</h3>
+    <p className="note-content">{note.content}</p>
+    {tags.length > 0 && <div className="tag-row">{tags.map(tag => <span className="tag-chip" key={tag.id}><TagIcon size={11} style={{ verticalAlign: "-2px", marginRight: 4 }}/>{tag.name}</span>)}</div>}
+    <div className="note-meta"><span>{new Date(note.updatedAt || note.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span><div className="note-actions">
+      <button className="icon-btn" title="Add tags or connections" aria-label="Add tags or connections" onClick={() => setShowTools(!showTools)}><Link2 size={16}/></button>
+      <button className="icon-btn" title="Edit note" aria-label="Edit note" onClick={() => onEdit(note)}><Pencil size={15}/></button>
+      <button className="icon-btn" title="Delete note" aria-label="Delete note" onClick={() => onDelete(note.id)}><Trash2 size={15}/></button>
+    </div></div>
+    {showTools && <div className="note-tools">
+      <div className="tool-row"><input className="field" value={newTag} onChange={e => setNewTag(e.target.value)} placeholder="New tag" aria-label="New tag" onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void handleCreateTag(); } }} /><button className="secondary-btn" onClick={() => void handleCreateTag()}><Plus size={14}/> Add</button></div>
+      {allTags.length > 0 && <div className="tool-row"><select className="field" value={selectedTag} onChange={e => setSelectedTag(e.target.value)} aria-label="Choose an existing tag"><option value="">Choose a tag…</option>{allTags.filter(tag => !tags.some(existing => existing.id === tag.id)).map(tag => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select><button className="secondary-btn" onClick={() => void handleAttachTag()}>Attach</button></div>}
+      {allNotes.length > 0 && <div className="tool-row"><select className="field" value={selectedNote} onChange={e => setSelectedNote(e.target.value)} aria-label="Choose a note to connect"><option value="">Connect to a note…</option>{allNotes.map(item => <option key={item.id} value={item.id}>{item.title || "Untitled note"}</option>)}</select><button className="secondary-btn" onClick={() => void handleCreateRelation()}><ArrowUpRight size={14}/> Link</button></div>}
+    </div>}
+  </article>;
 }

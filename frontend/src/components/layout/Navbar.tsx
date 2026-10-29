@@ -1,42 +1,15 @@
 import { useNavigate } from "react-router-dom";
+import { BookOpen, LogOut } from "lucide-react";
 
 export default function Navbar() {
   const navigate = useNavigate();
-
   function logout() {
     localStorage.removeItem("token");
     navigate("/");
   }
 
-  return (
-    <div
-      style={{
-        height: "70px",
-        background: "#1f2937",
-        color: "white",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        padding: "0 30px",
-      }}
-    >
-      <h2
-        style={{
-          color: "white",
-        }}
-      >
-        Personal Knowledge Graph
-      </h2>
-
-      <button
-        onClick={logout}
-        style={{
-          padding: "10px 18px",
-          cursor: "pointer",
-        }}
-      >
-        Logout
-      </button>
-    </div>
-  );
+  return <header className="topbar">
+    <a href="/dashboard" className="brand"><span className="brand-mark"><BookOpen size={18} /></span> Mindgarden</a>
+    <div className="topbar-right"><span className="avatar">M</span><button className="logout" onClick={logout}><LogOut size={15} /> <span>Sign out</span></button></div>
+  </header>;
 }
