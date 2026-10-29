@@ -8,10 +8,11 @@ import { getNotes } from "../../services/note.service";
 import MarkdownPreview from "./MarkdownPreview";
 import "../../markdown.css";
 import type { NoteView } from "../../services/note.service";
+import type { NoteRelation } from "../../types/relation";
 
-interface Props { note: Note; view: NoteView; onDelete: (id: number) => void; onEdit: (note: Note) => void; onPin: (id: number, pinned: boolean) => void; onArchive: (id: number, archived: boolean) => void; onRestore: (id: number) => void; onPurge: (id: number) => void; onStatsChange: () => void; }
+interface Props { note: Note; view: NoteView; relations: NoteRelation[]; onDelete: (id: number) => void; onEdit: (note: Note) => void; onPin: (id: number, pinned: boolean) => void; onArchive: (id: number, archived: boolean) => void; onRestore: (id: number) => void; onPurge: (id: number) => void; onStatsChange: () => void; }
 
-export default function NoteCard({ note, view, onDelete, onEdit, onPin, onArchive, onRestore, onPurge, onStatsChange }: Props) {
+export default function NoteCard({ note, view, relations, onDelete, onEdit, onPin, onArchive, onRestore, onPurge, onStatsChange }: Props) {
   const [tags, setTags] = useState<Tag[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [allNotes, setAllNotes] = useState<Note[]>([]);
@@ -19,6 +20,8 @@ export default function NoteCard({ note, view, onDelete, onEdit, onPin, onArchiv
   const [selectedTag, setSelectedTag] = useState("");
   const [selectedNote, setSelectedNote] = useState("");
   const [showTools, setShowTools] = useState(false);
+  const outgoing = relations.filter(relation => relation.sourceNoteId === note.id);
+  const incoming = relations.filter(relation => relation.targetNoteId === note.id);
 
   async function loadData() {
     try {
@@ -59,6 +62,7 @@ export default function NoteCard({ note, view, onDelete, onEdit, onPin, onArchiv
     <h3>{note.title || "Untitled note"}</h3>
     <div className="note-content markdown-card-content"><MarkdownPreview content={note.content}/></div>
     {tags.length > 0 && <div className="tag-row">{tags.map(tag => <span className="tag-chip" key={tag.id}><TagIcon size={11} style={{ verticalAlign: "-2px", marginRight: 4 }}/>{tag.name}</span>)}</div>}
+    {(outgoing.length > 0 || incoming.length > 0) && <div className="note-link-summary">{outgoing.length > 0 && <div><span>Links to</span>{outgoing.map(relation => <button key={`out-${relation.targetNoteId}`} onClick={() => onEdit(relation.targetNote)}>{relation.targetNote.title}</button>)}</div>}{incoming.length > 0 && <div><span>Backlinks</span>{incoming.map(relation => <button key={`in-${relation.sourceNoteId}`} onClick={() => onEdit(relation.sourceNote)}>{relation.sourceNote.title}</button>)}</div>}</div>}
     <div className="note-meta"><span>{new Date(note.updatedAt || note.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span><div className="note-actions">
       {view === "trash" ? <><button className="icon-btn" title="Restore note" aria-label="Restore note" onClick={() => onRestore(note.id)}><RotateCcw size={15}/></button><button className="icon-btn" title="Delete permanently" aria-label="Delete permanently" onClick={() => onPurge(note.id)}><Trash2 size={15}/></button></> : <><button className="icon-btn" title="Add tags or connections" aria-label="Add tags or connections" onClick={() => setShowTools(!showTools)}><Link2 size={16}/></button><button className="icon-btn" title="Edit note" aria-label="Edit note" onClick={() => onEdit(note)}><Pencil size={15}/></button><button className="icon-btn" title={note.isPinned ? "Unpin note" : "Pin note"} aria-label={note.isPinned ? "Unpin note" : "Pin note"} onClick={() => onPin(note.id, !note.isPinned)}>{note.isPinned ? <PinOff size={15}/> : <Pin size={15}/>}</button><button className="icon-btn" title={view === "archive" ? "Restore from archive" : "Archive note"} aria-label={view === "archive" ? "Restore from archive" : "Archive note"} onClick={() => onArchive(note.id, view !== "archive")}><Archive size={15}/></button><button className="icon-btn" title="Move to trash" aria-label="Move to trash" onClick={() => onDelete(note.id)}><Trash2 size={15}/></button></>}
     </div></div>
